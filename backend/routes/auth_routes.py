@@ -1,0 +1,74 @@
+from fastapi import APIRouter, HTTPException
+from bson import ObjectId
+
+from db.mongo import users_collection
+from models.user_model import user_document
+from schemas.auth_schema import RegisterRequest, LoginRequest
+from core.security import hash_password, verify_password, create_access_token
+from fastapi import APIRouter, HTTPException, Depends
+from core.dependencies import get_current_user
+
+router = APIRouter(prefix="/auth", tags=["Auth"])
+
+
+@router.post("/register")
+def register(data: RegisterRequest):
+    existing_user = users_collection.find_one({"email": data.email.lower().strip()})
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Bu email zaten kayıtlı.")
+
+    hashed = hash_password(data.password)
+    user = user_document(
+        name=data.name,
+        email=data.email,
+        password_hash=hashed
+    )
+
+    result = users_collection.insert_one(user)
+
+    token = create_access_token({
+        "sub": str(result.inserted_id),
+        "email": data.email.lower().strip()
+    })
+
+    return {
+        "ok": True,
+        "message": "Kayıt başarılı.",
+        "userId": str(result.inserted_id),
+        "access_token": token,
+        "token_type": "bearer"
+    }
+
+
+@router.post("/login")
+def login(data: LoginRequest):
+    user = users_collection.find_one({"email": data.email.lower().strip()})
+    if not user:
+        raise HTTPException(status_code=401, detail="Email veya şifre hatalı.")
+
+    if not verify_password(data.password, user["passwordHash"]):
+        raise HTTPException(status_code=401, detail="Email veya şifre hatalı.")
+
+    token = create_access_token({
+        "sub": str(user["_id"]),
+        "email": user["email"]
+    })
+
+    return {
+        "ok": True,
+        "message": "Giriş başarılı.",
+        "userId": str(user["_id"]),
+        "access_token": token,
+        "token_type": "bearer"
+    }
+
+@router.get("/me")
+def get_me(current_user: dict = Depends(get_current_user)):
+    return {
+        "ok": True,
+        "user": {
+            "id": current_user["_id"],
+            "name": current_user["name"],
+            "email": current_user["email"]
+        }
+    }
