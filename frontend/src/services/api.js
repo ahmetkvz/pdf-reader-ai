@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: "http://127.0.0.1:8010",
+  baseURL: "https://pdf-reader-backend-4rea.onrender.com",
 });
 
 api.interceptors.request.use((config) => {
