@@ -1,12 +1,12 @@
 import os
 import re
-import google.generativeai as genai
+import json
+from google import genai
 from dotenv import load_dotenv
 
 load_dotenv()
 
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-model = genai.GenerativeModel("gemini-2.0-flash")
+client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 
 def detect_sensitive(text: str) -> list:
@@ -59,7 +59,10 @@ def detect_document_type(text: str, filename: str = "") -> str:
 
 def _ask_gemini(prompt: str) -> str:
     try:
-        response = model.generate_content(prompt)
+        response = client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=prompt
+        )
         return response.text.strip()
     except Exception as e:
         return f"AI yanıt üretemedi: {str(e)}"
@@ -125,7 +128,6 @@ CV metni:
     try:
         json_match = re.search(r'\{.*\}', result, re.DOTALL)
         if json_match:
-            import json
             return json.loads(json_match.group())
     except:
         pass
@@ -159,7 +161,6 @@ Ders notu:
     try:
         json_match = re.search(r'\{.*\}', result, re.DOTALL)
         if json_match:
-            import json
             return json.loads(json_match.group())
     except:
         pass
@@ -191,7 +192,6 @@ Belge:
     try:
         json_match = re.search(r'\{.*\}', result, re.DOTALL)
         if json_match:
-            import json
             return json.loads(json_match.group())
     except:
         pass
