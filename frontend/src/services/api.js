@@ -23,6 +23,7 @@ export const documentService = {
     return api.post("/documents/upload", form);
   },
   getMyDocuments: () => api.get("/documents/me"),
+  deleteDocument: (id) => api.delete(`/documents/${id}`),
 };
 
 export const analysisService = {

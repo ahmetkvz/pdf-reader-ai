@@ -94,3 +94,34 @@ async def upload_document(
         "fileType": file_type,
         "documentType": document_type
     }
+
+@router.delete("/{document_id}")
+async def delete_document(
+    document_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    from bson import ObjectId
+    from db.mongo import analyses_collection
+    from pathlib import Path
+
+    try:
+        doc = documents_collection.find_one({
+            "_id": ObjectId(document_id),
+            "userId": current_user["_id"]
+        })
+    except Exception:
+        raise HTTPException(status_code=400, detail="Geçersiz document id.")
+
+    if not doc:
+        raise HTTPException(status_code=404, detail="Belge bulunamadı.")
+
+    stored = doc.get("storedFilename")
+    if stored:
+        file_path = UPLOAD_DIR / stored
+        if file_path.exists():
+            file_path.unlink()
+
+    documents_collection.delete_one({"_id": ObjectId(document_id)})
+    analyses_collection.delete_many({"documentId": document_id})
+
+    return {"ok": True, "message": "Belge silindi."}

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { documentService } from "../services/api";
 import { useAuth } from "../context/AuthContext";
-import { Upload, FileText, LogOut, Clock, ChevronRight, Loader2, AlertCircle } from "lucide-react";
+import { Upload, FileText, LogOut, Clock, ChevronRight, Loader2, AlertCircle, Trash2 } from "lucide-react";
 
 const DOCTYPE_LABELS = {
   cv: { label: "CV", color: "bg-blue-100 text-blue-700" },
@@ -25,6 +25,20 @@ export default function HomePage() {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const [dragOver, setDragOver] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
+
+  const handleDelete = async (e, docId) => {
+    e.stopPropagation();
+    if (!window.confirm("Bu belgeyi silmek istediğinize emin misiniz?")) return;
+    setDeletingId(docId);
+    try {
+      await documentService.deleteDocument(docId);
+      setDocuments(prev => prev.filter(d => d._id !== docId));
+    } catch {
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   const fetchDocs = () => {
     setDocsLoading(true);
@@ -121,7 +135,16 @@ export default function HomePage() {
                         </div>
                       </div>
                     </div>
-                    <ChevronRight size={16} className="text-gray-300 shrink-0" />
+                    <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          onClick={(e) => handleDelete(e, doc._id)}
+                          disabled={deletingId === doc._id}
+                          className="p-1.5 text-gray-300 hover:text-red-400 transition-colors disabled:opacity-50"
+                        >
+                          {deletingId === doc._id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                        </button>
+                        <ChevronRight size={16} className="text-gray-300" />
+                      </div>
                   </div>
                 );
               })}
