@@ -73,11 +73,6 @@ async def upload_document(
     # Böylece PDF veya TXT dosyalarında da çalışır.
     document_type = detect_document_type(text_content, file.filename)
 
-    print("UPLOAD DEBUG")
-    print("Filename:", file.filename)
-    print("File type:", file_type)
-    print("Text length:", len(text_content))
-    print("Detected document type:", document_type)
 
     doc = document_record(
         user_id=current_user["_id"],
