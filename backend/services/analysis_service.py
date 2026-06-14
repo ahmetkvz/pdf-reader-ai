@@ -1,12 +1,12 @@
 import os
 import re
 import json
-from google import genai
+from groq import Groq
 from dotenv import load_dotenv
 
 load_dotenv()
 
-client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 
 def detect_sensitive(text: str) -> list:
@@ -57,13 +57,14 @@ def detect_document_type(text: str, filename: str = "") -> str:
     return "general"
 
 
-def _ask_gemini(prompt: str) -> str:
+def _ask_groq(prompt: str) -> str:
     try:
-        response = client.models.generate_content(
-            model="gemini-2.0-flash",
-            contents=prompt
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=1000,
         )
-        return response.text.strip()
+        return response.choices[0].message.content.strip()
     except Exception as e:
         return f"AI yanıt üretemedi: {str(e)}"
 
@@ -84,7 +85,7 @@ def simple_summary(text: str, max_sentences: int = 5, max_chars: int = 900) -> s
 
 Metin:
 {text[:3000]}"""
-    return _ask_gemini(prompt)
+    return _ask_groq(prompt)
 
 
 def extract_keywords(text: str, top_n: int = 10) -> list:
@@ -93,7 +94,7 @@ Her kelimeyi ayrı satıra yaz, sadece kelime/kavramı yaz başka açıklama ekl
 
 Metin:
 {text[:3000]}"""
-    result = _ask_gemini(prompt)
+    result = _ask_groq(prompt)
     return _parse_list(result)[:top_n]
 
 
@@ -104,7 +105,7 @@ Türkçe olarak yaz.
 
 Metin:
 {text[:3000]}"""
-    result = _ask_gemini(prompt)
+    result = _ask_groq(prompt)
     return _parse_list(result)[:limit]
 
 
@@ -124,7 +125,7 @@ CV metni:
   "careerAdvice": "kariyer tavsiyesi paragrafı"
 }}"""
 
-    result = _ask_gemini(prompt)
+    result = _ask_groq(prompt)
     try:
         json_match = re.search(r'\{.*\}', result, re.DOTALL)
         if json_match:
@@ -157,7 +158,7 @@ Ders notu:
   "possibleExamQuestions": ["olası soru 1", "olası soru 2", "olası soru 3"]
 }}"""
 
-    result = _ask_gemini(prompt)
+    result = _ask_groq(prompt)
     try:
         json_match = re.search(r'\{.*\}', result, re.DOTALL)
         if json_match:
@@ -188,7 +189,7 @@ Belge:
   "recommendations": ["tavsiye 1", "tavsiye 2"]
 }}"""
 
-    result = _ask_gemini(prompt)
+    result = _ask_groq(prompt)
     try:
         json_match = re.search(r'\{.*\}', result, re.DOTALL)
         if json_match:
