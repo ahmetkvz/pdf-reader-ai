@@ -9,133 +9,13 @@ from services.analysis_service import (
     detect_sensitive,
     extract_keywords,
     extract_important_points,
+    analyze_cv_with_gemini,
+    analyze_lecture_with_gemini,
+    analyze_general_with_gemini,
+    detect_document_type,
 )
 
 router = APIRouter(prefix="/analysis", tags=["Analysis"])
-
-
-def analyze_cv(text: str):
-    summary = simple_summary(text, max_sentences=5, max_chars=900)
-    keywords = extract_keywords(text, top_n=12)
-    important_points = extract_important_points(text, limit=6)
-    sensitive_findings = detect_sensitive(text)
-
-    cv_sections = {
-        "profileSummary": summary,
-        "strongSides": [],
-        "technicalSkills": [],
-        "experienceHighlights": [],
-        "improvementSuggestions": []
-    }
-
-    lower = text.lower()
-
-    if "backend" in lower or "api" in lower:
-        cv_sections["strongSides"].append("Backend development ve API entegrasyonu alanında deneyim/ilgi görülüyor.")
-
-    if "mongodb" in lower or "sql" in lower or "mssql" in lower:
-        cv_sections["strongSides"].append("Veritabanı teknolojileriyle çalışma deneyimi bulunuyor.")
-
-    if "llm" in lower or "rag" in lower or "artificial intelligence" in lower:
-        cv_sections["strongSides"].append("Yapay zekâ, LLM ve RAG tabanlı projelere yönelik deneyim bulunuyor.")
-
-    if "intern" in lower or "staj" in lower:
-        cv_sections["experienceHighlights"].append("Staj deneyimleri CV içinde açık şekilde belirtilmiş.")
-
-    skill_candidates = [
-        "python", "java", "javascript", "c#", "c++", "c",
-        "react", "node.js", "mongodb", "mssql", "fastapi",
-        ".net", "asp.net", "rest api", "postman", "git", "github",
-        "llm", "rag", "swagger"
-    ]
-
-    for skill in skill_candidates:
-        if skill in lower:
-            cv_sections["technicalSkills"].append(skill)
-
-    cv_sections["technicalSkills"] = sorted(set(cv_sections["technicalSkills"]))
-
-    if "github" not in lower:
-        cv_sections["improvementSuggestions"].append("CV’ye GitHub profil linki eklenebilir.")
-
-    if "project" not in lower and "projects" not in lower:
-        cv_sections["improvementSuggestions"].append("Projeler bölümü daha görünür hale getirilebilir.")
-
-    if "english" not in lower and "ingilizce" not in lower:
-        cv_sections["improvementSuggestions"].append("Dil seviyesi bilgisi eklenebilir.")
-
-    if not cv_sections["improvementSuggestions"]:
-        cv_sections["improvementSuggestions"].append("CV genel olarak yeterli görünüyor; proje açıklamaları daha ölçülebilir sonuçlarla güçlendirilebilir.")
-
-    return {
-        "summary": summary,
-        "importantPoints": important_points,
-        "sensitiveFindings": sensitive_findings,
-        "keywords": keywords,
-        "documentSpecificAnalysis": cv_sections
-    }
-
-
-def analyze_lecture_note(text: str):
-    summary = simple_summary(text, max_sentences=6, max_chars=1000)
-    keywords = extract_keywords(text, top_n=15)
-    important_points = extract_important_points(text, limit=8)
-    sensitive_findings = detect_sensitive(text)
-
-    exam_notes = []
-
-    for point in important_points:
-        exam_notes.append(f"Sınav için dikkat: {point}")
-
-    lecture_sections = {
-        "lessonSummary": summary,
-        "keyConcepts": keywords,
-        "examFocusedNotes": exam_notes[:5],
-        "studySuggestions": [
-            "Önce ana kavramları kısa tanımlarıyla tekrar et.",
-            "Daha sonra örnek soru-cevap mantığıyla konuyu pekiştir.",
-            "Sayısal veya formüllü kısımlar varsa ayrıca küçük bir formül listesi çıkar.",
-            "Sınav öncesi önemli noktaları madde madde tekrar et."
-        ]
-    }
-
-    return {
-        "summary": summary,
-        "importantPoints": important_points,
-        "sensitiveFindings": sensitive_findings,
-        "keywords": keywords,
-        "documentSpecificAnalysis": lecture_sections
-    }
-
-
-def analyze_general_document(text: str):
-    summary = simple_summary(text, max_sentences=5, max_chars=900)
-    keywords = extract_keywords(text, top_n=10)
-    important_points = extract_important_points(text, limit=5)
-    sensitive_findings = detect_sensitive(text)
-
-    general_sections = {
-        "generalSummary": summary,
-        "mainTopics": keywords,
-        "documentWarnings": []
-    }
-
-    if sensitive_findings:
-        general_sections["documentWarnings"].append(
-            "Bu belgede hassas veri olabilecek bilgiler tespit edildi."
-        )
-    else:
-        general_sections["documentWarnings"].append(
-            "Belgede belirgin bir hassas veri tespit edilmedi."
-        )
-
-    return {
-        "summary": summary,
-        "importantPoints": important_points,
-        "sensitiveFindings": sensitive_findings,
-        "keywords": keywords,
-        "documentSpecificAnalysis": general_sections
-    }
 
 
 @router.post("/run/{document_id}")
@@ -158,20 +38,17 @@ def run_analysis(document_id: str, current_user: dict = Depends(get_current_user
 
     document_type = doc.get("documentType", "general")
 
+    summary = simple_summary(text)
+    important_points = extract_important_points(text)
+    sensitive_findings = detect_sensitive(text)
+    keywords = extract_keywords(text)
+
     if document_type == "cv":
-        analysis_result = analyze_cv(text)
-
+        document_specific_analysis = analyze_cv_with_gemini(text)
     elif document_type == "lecture_note":
-        analysis_result = analyze_lecture_note(text)
-
+        document_specific_analysis = analyze_lecture_with_gemini(text)
     else:
-        analysis_result = analyze_general_document(text)
-
-    summary = analysis_result["summary"]
-    important_points = analysis_result["importantPoints"]
-    sensitive_findings = analysis_result["sensitiveFindings"]
-    keywords = analysis_result["keywords"]
-    document_specific_analysis = analysis_result["documentSpecificAnalysis"]
+        document_specific_analysis = analyze_general_with_gemini(text)
 
     existing = analyses_collection.find_one({
         "documentId": document_id,
@@ -194,16 +71,15 @@ def run_analysis(document_id: str, current_user: dict = Depends(get_current_user
         analyses_collection.update_one(
             {"_id": existing["_id"]},
             {"$set": {
-                "summary": analysis_data["summary"],
-                "importantPoints": analysis_data["importantPoints"],
-                "sensitiveFindings": analysis_data["sensitiveFindings"],
-                "keywords": analysis_data["keywords"],
+                "summary": summary,
+                "importantPoints": important_points,
+                "sensitiveFindings": sensitive_findings,
+                "keywords": keywords,
                 "documentType": document_type,
                 "documentSpecificAnalysis": document_specific_analysis
             }}
         )
         analysis_id = str(existing["_id"])
-
     else:
         result = analyses_collection.insert_one(analysis_data)
         analysis_id = str(result.inserted_id)
