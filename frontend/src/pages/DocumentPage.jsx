@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { documentService, analysisService } from "../services/api";
-import { ArrowLeft, Play, Loader2, AlertCircle, FileText, Tag, Shield, Star, BookOpen, User, FileSearch } from "lucide-react";
+import api from "../services/api";
+import { ArrowLeft, Play, Loader2, AlertCircle, FileText, Tag, Shield, Star, BookOpen, MessageCircle, Send, X } from "lucide-react";
 
 const DOCTYPE_LABELS = {
   cv: { label: "CV", color: "bg-blue-100 text-blue-700" },
@@ -35,12 +36,17 @@ function CVAnalysis({ data }) {
       )}
       {data.technicalSkills?.length > 0 && (
         <Section icon={Tag} title="Teknik Beceriler" color="text-blue-500">
-          <div className="flex flex-wrap gap-1.5">{data.technicalSkills.map((s, i) => <span key={i} className="bg-blue-50 text-blue-700 text-xs px-2.5 py-1 rounded-full font-medium">{s}</span>)}</div>
+          <div className="flex flex-wrap gap-1.5">{data.technicalSkills.map((s, i) => <span key={i} className="bg-blue-50 text-blue-700 text.xs px-2.5 py-1 rounded-full font-medium">{s}</span>)}</div>
         </Section>
       )}
       {data.improvementSuggestions?.length > 0 && (
         <Section icon={AlertCircle} title="Öneriler" color="text-orange-400">
           <ul className="space-y-1.5">{data.improvementSuggestions.map((s, i) => <li key={i} className="text-sm text-gray-600 flex items-start gap-2"><span className="text-orange-300 mt-0.5">•</span>{s}</li>)}</ul>
+        </Section>
+      )}
+      {data.careerAdvice && (
+        <Section icon={Star} title="Kariyer Tavsiyesi" color="text-green-500">
+          <p className="text-sm text-gray-600 leading-relaxed">{data.careerAdvice}</p>
         </Section>
       )}
     </div>
@@ -60,6 +66,11 @@ function LectureAnalysis({ data }) {
           <ul className="space-y-1.5">{data.studySuggestions.map((s, i) => <li key={i} className="text-sm text-gray-600 flex items-start gap-2"><span className="text-amber-300 mt-0.5">•</span>{s}</li>)}</ul>
         </Section>
       )}
+      {data.possibleExamQuestions?.length > 0 && (
+        <Section icon={BookOpen} title="Olası Sınav Soruları" color="text-red-400">
+          <ul className="space-y-1.5">{data.possibleExamQuestions.map((s, i) => <li key={i} className="text-sm text-gray-600 flex items-start gap-2"><span className="text-red-300 mt-0.5">•</span>{s}</li>)}</ul>
+        </Section>
+      )}
     </div>
   );
 }
@@ -73,16 +84,28 @@ export default function DocumentPage() {
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState("");
 
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatHistory, setChatHistory] = useState([]);
+  const [question, setQuestion] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+  const chatEndRef = useRef(null);
+
   useEffect(() => {
     Promise.all([
       documentService.getMyDocuments(),
       analysisService.get(id).catch(() => null),
-    ]).then(([docsRes, analysisRes]) => {
+      api.get(`/chat/${id}`).catch(() => null),
+    ]).then(([docsRes, analysisRes, chatRes]) => {
       const found = docsRes.data.documents.find((d) => d._id === id);
       setDoc(found || null);
       if (analysisRes) setAnalysis(analysisRes.data.analysis);
+      if (chatRes) setChatHistory(chatRes.data.chatHistory || []);
     }).finally(() => setLoading(false));
   }, [id]);
+
+  useEffect(() => {
+    if (chatOpen) chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatHistory, chatOpen]);
 
   const runAnalysis = async () => {
     setAnalyzing(true);
@@ -94,6 +117,23 @@ export default function DocumentPage() {
       setError(err.response?.data?.detail || "Analiz başarısız.");
     } finally {
       setAnalyzing(false);
+    }
+  };
+
+  const sendQuestion = async () => {
+    if (!question.trim() || chatLoading) return;
+    const q = question.trim();
+    setQuestion("");
+    setChatLoading(true);
+    const tempMsg = { question: q, answer: null, timestamp: new Date().toISOString() };
+    setChatHistory(prev => [...prev, tempMsg]);
+    try {
+      const res = await api.post(`/chat/${id}`, { question: q });
+      setChatHistory(prev => prev.map((m, i) => i === prev.length - 1 ? res.data : m));
+    } catch {
+      setChatHistory(prev => prev.map((m, i) => i === prev.length - 1 ? { ...m, answer: "Bir hata oluştu." } : m));
+    } finally {
+      setChatLoading(false);
     }
   };
 
@@ -111,10 +151,11 @@ export default function DocumentPage() {
           <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${typeInfo.color}`}>{typeInfo.label}</span>
         </div>
       </header>
-      <main className="max-w-2xl mx-auto px-4 py-6 space-y-4">
+
+      <main className="max-w-2xl mx-auto px-4 py-6 space-y-4 pb-24">
         {!analysis && (
           <div className="bg-white border border-gray-200 rounded-2xl p-5 text-center">
-            <FileSearch size={36} className="text-indigo-300 mx-auto mb-3" />
+            <FileText size={36} className="text-indigo-300 mx-auto mb-3" />
             <p className="text-sm text-gray-600 mb-4">Bu belge henüz analiz edilmedi.</p>
             {error && <div className="flex items-center justify-center gap-1.5 text-red-500 text-sm mb-3"><AlertCircle size={14} />{error}</div>}
             <button onClick={runAnalysis} disabled={analyzing} className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-5 py-2.5 text-sm font-medium flex items-center gap-2 mx-auto transition-colors disabled:opacity-60">
@@ -123,6 +164,7 @@ export default function DocumentPage() {
             </button>
           </div>
         )}
+
         {analysis && (
           <>
             <div className="flex justify-end">
@@ -156,9 +198,83 @@ export default function DocumentPage() {
             </Section>
             {analysis.documentType === "cv" && analysis.documentSpecificAnalysis && <CVAnalysis data={analysis.documentSpecificAnalysis} />}
             {analysis.documentType === "lecture_note" && analysis.documentSpecificAnalysis && <LectureAnalysis data={analysis.documentSpecificAnalysis} />}
+
+            {chatHistory.length > 0 && (
+              <Section icon={MessageCircle} title="Sohbet Geçmişi" color="text-indigo-500">
+                <div className="space-y-3 max-h-60 overflow-y-auto">
+                  {chatHistory.map((m, i) => (
+                    <div key={i} className="space-y-1">
+                      <div className="flex justify-end"><span className="bg-indigo-600 text-white text-sm px-3 py-2 rounded-2xl rounded-tr-sm max-w-xs">{m.question}</span></div>
+                      {m.answer && <div className="flex justify-start"><span className="bg-white border border-gray-200 text-gray-700 text-sm px-3 py-2 rounded-2xl rounded-tl-sm max-w-xs">{m.answer}</span></div>}
+                    </div>
+                  ))}
+                </div>
+              </Section>
+            )}
           </>
         )}
       </main>
+
+      {/* Chat floating button */}
+      {analysis && (
+        <button
+          onClick={() => setChatOpen(true)}
+          className="fixed bottom-6 right-6 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full p-4 shadow-lg transition-colors z-20"
+        >
+          <MessageCircle size={24} />
+        </button>
+      )}
+
+      {/* Chat panel */}
+      {chatOpen && (
+        <div className="fixed inset-0 z-30 flex items-end sm:items-center justify-center sm:justify-end sm:pr-6 sm:pb-6">
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full sm:w-96 h-[70vh] sm:h-[500px] flex flex-col border border-gray-200">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <MessageCircle size={18} className="text-indigo-500" />
+                <span className="text-sm font-semibold text-gray-700">Belgeyle Sohbet</span>
+              </div>
+              <button onClick={() => setChatOpen(false)} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+              {chatHistory.length === 0 && (
+                <p className="text-xs text-gray-400 text-center mt-8">Belge hakkında bir şeyler sor!</p>
+              )}
+              {chatHistory.map((m, i) => (
+                <div key={i} className="space-y-1">
+                  <div className="flex justify-end"><span className="bg-indigo-600 text-white text-sm px-3 py-2 rounded-2xl rounded-tr-sm max-w-xs leading-relaxed">{m.question}</span></div>
+                  {m.answer ? (
+                    <div className="flex justify-start"><span className="bg-gray-100 text-gray-700 text-sm px-3 py-2 rounded-2xl rounded-tl-sm max-w-xs leading-relaxed">{m.answer}</span></div>
+                  ) : (
+                    <div className="flex justify-start"><span className="bg-gray-100 text-gray-400 text-sm px-3 py-2 rounded-2xl rounded-tl-sm"><Loader2 size={14} className="animate-spin" /></span></div>
+                  )}
+                </div>
+              ))}
+              <div ref={chatEndRef} />
+            </div>
+
+            <div className="px-4 py-3 border-t border-gray-100">
+              <div className="flex gap-2">
+                <input
+                  value={question}
+                  onChange={(e) => setQuestion(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && sendQuestion()}
+                  placeholder="Bir soru sor..."
+                  className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+                <button
+                  onClick={sendQuestion}
+                  disabled={chatLoading || !question.trim()}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-3 py-2 transition-colors disabled:opacity-50"
+                >
+                  <Send size={16} />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
