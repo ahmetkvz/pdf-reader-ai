@@ -32,23 +32,28 @@ def chat_with_document(
     if not doc:
         raise HTTPException(status_code=404, detail="Belge bulunamadı.")
 
-    relevant_chunks = query_document(document_id, body.question, top_k=3)
+    relevant_chunks = query_document(document_id, body.question, top_k=6)
 
     if relevant_chunks:
-        context = "\n\n".join(relevant_chunks)
+        context = "\n\n---\n\n".join(relevant_chunks)
     else:
         context = doc.get("textContent", "").strip()[:4000]
 
     if not context:
         raise HTTPException(status_code=400, detail="Belge içeriği boş.")
 
-    prompt = f"""Aşağıdaki belge parçalarına dayanarak kullanıcının sorusunu Türkçe olarak yanıtla.
-Sadece verilen parçalarda bulunan bilgilere göre cevap ver. Bilgi yoksa "Bu bilgi belgede yer almıyor." de.
+    prompt = f"""Sen bir belge asistanısın. Sana belge içinden alınmış parçalar verilecek.
+KURALLAR:
+1. SADECE aşağıda verilen belge parçalarındaki bilgiyi kullan.
+2. Kendi genel bilgini, dışarıdan bilgiyi veya tahminini KESİNLİKLE kullanma.
+3. Eğer cevap parçalarda yoksa, sadece şunu yaz: "Bu bilgi belgede yer almıyor."
+4. Cevabı SADECE Türkçe yaz, başka dilden kelime kullanma.
+5. Cevap belgede varsa, belgedeki ifadelere sadık kalarak özetle.
 
 Belge parçaları:
 {context}
 
-Kullanıcının sorusu: {body.question}
+Soru: {body.question}
 
 Cevap:"""
 

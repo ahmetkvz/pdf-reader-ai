@@ -1,10 +1,9 @@
 import chromadb
-import re
 
 client = chromadb.PersistentClient(path="./chroma_db")
 
 
-def chunk_text(text: str, chunk_size: int = 500, overlap: int = 50) -> list:
+def chunk_text(text: str, chunk_size: int = 200, overlap: int = 40) -> list:
     words = text.split()
     chunks = []
     i = 0
@@ -39,7 +38,7 @@ def index_document(document_id: str, text: str):
     return len(chunks)
 
 
-def query_document(document_id: str, question: str, top_k: int = 3) -> list:
+def query_document(document_id: str, question: str, top_k: int = 6) -> list:
     collection = get_collection(document_id)
 
     if collection.count() == 0:
