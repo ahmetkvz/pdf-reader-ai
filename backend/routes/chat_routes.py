@@ -32,7 +32,7 @@ def chat_with_document(
     if not doc:
         raise HTTPException(status_code=404, detail="Belge bulunamadı.")
 
-    relevant_chunks = query_document(document_id, body.question, top_k=9)
+    relevant_chunks = query_document(document_id, body.question, top_k=12)
 
     if relevant_chunks:
         context = "\n\n---\n\n".join(relevant_chunks)

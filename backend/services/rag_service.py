@@ -4,7 +4,7 @@ from collections import Counter
 _STORE = {}
 
 
-def chunk_text(text: str, chunk_size: int = 200, overlap: int = 40) -> list:
+def chunk_text(text: str, chunk_size: int = 150, overlap: int = 75) -> list:
     words = text.split()
     chunks = []
     i = 0
@@ -36,7 +36,7 @@ def index_document(document_id: str, text: str):
     return len(chunks)
 
 
-def query_document(document_id: str, question: str, top_k: int = 9) -> list:
+def query_document(document_id: str, question: str, top_k: int = 12) -> list:
     if document_id not in _STORE:
         return []
 
