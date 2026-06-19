@@ -5,7 +5,7 @@ from datetime import datetime
 
 from db.mongo import documents_collection, analyses_collection
 from core.dependencies import get_current_user
-from services.analysis_service import _ask_groq
+from services.analysis_service import _ask_groq_chat
 from services.rag_service import query_document
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
@@ -32,12 +32,12 @@ def chat_with_document(
     if not doc:
         raise HTTPException(status_code=404, detail="Belge bulunamadı.")
 
-    relevant_chunks = query_document(document_id, body.question, top_k=12)
+    relevant_chunks = query_document(document_id, body.question, top_k=6)
 
     if relevant_chunks:
         context = "\n\n---\n\n".join(relevant_chunks)
     else:
-        context = doc.get("textContent", "").strip()[:4000]
+        context = doc.get("textContent", "").strip()[:2000]
 
     if not context:
         raise HTTPException(status_code=400, detail="Belge içeriği boş.")
@@ -57,7 +57,7 @@ Soru: {body.question}
 
 Cevap:"""
 
-    answer = _ask_groq(prompt)
+    answer = _ask_groq_chat(prompt)
 
     message = {
         "question": body.question,

@@ -203,3 +203,15 @@ Belge:
         "documentWarnings": [],
         "recommendations": []
     }
+
+
+def _ask_groq_chat(prompt: str) -> str:
+    try:
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=350,
+        )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        return f"AI yanıt üretemedi: {str(e)}"
