@@ -1,6 +1,7 @@
-import chromadb
+import re
+from collections import Counter
 
-client = chromadb.PersistentClient(path="./chroma_db")
+_STORE = {}
 
 
 def chunk_text(text: str, chunk_size: int = 200, overlap: int = 40) -> list:
@@ -15,38 +16,46 @@ def chunk_text(text: str, chunk_size: int = 200, overlap: int = 40) -> list:
     return chunks
 
 
-def get_collection(document_id: str):
-    collection_name = f"doc_{document_id}"
-    return client.get_or_create_collection(name=collection_name)
+def _tokenize(text: str) -> list:
+    text = text.lower()
+    text = re.sub(r"[^\wçğıöşüâî\s]", " ", text)
+    return [w for w in text.split() if len(w) > 2]
 
 
 def index_document(document_id: str, text: str):
-    collection = get_collection(document_id)
-
-    existing = collection.count()
-    if existing > 0:
-        collection.delete(ids=[str(i) for i in range(existing)])
-
     chunks = chunk_text(text)
     if not chunks:
         return 0
 
-    collection.add(
-        documents=chunks,
-        ids=[str(i) for i in range(len(chunks))]
-    )
+    indexed = []
+    for chunk in chunks:
+        tokens = _tokenize(chunk)
+        indexed.append({"text": chunk, "tokens": Counter(tokens)})
+
+    _STORE[document_id] = indexed
     return len(chunks)
 
 
 def query_document(document_id: str, question: str, top_k: int = 9) -> list:
-    collection = get_collection(document_id)
-
-    if collection.count() == 0:
+    if document_id not in _STORE:
         return []
 
-    results = collection.query(
-        query_texts=[question],
-        n_results=min(top_k, collection.count())
-    )
+    indexed = _STORE[document_id]
+    q_tokens = set(_tokenize(question))
 
-    return results["documents"][0] if results["documents"] else []
+    if not q_tokens:
+        return [c["text"] for c in indexed[:top_k]]
+
+    scored = []
+    for chunk in indexed:
+        score = sum(chunk["tokens"][t] for t in q_tokens if t in chunk["tokens"])
+        overlap_count = sum(1 for t in q_tokens if t in chunk["tokens"])
+        scored.append((score + overlap_count, chunk["text"]))
+
+    scored.sort(key=lambda x: -x[0])
+    top = [text for score, text in scored[:top_k] if score > 0]
+
+    if not top:
+        top = [c["text"] for c in indexed[:top_k]]
+
+    return top
