@@ -5,6 +5,7 @@ import time
 from db.mongo import documents_collection
 from core.dependencies import get_current_user
 from models.document_model import document_record
+from services.rag_service import index_document
 from services.pdf_service import extract_text_from_pdf
 from services.analysis_service import detect_document_type
 
@@ -84,6 +85,9 @@ async def upload_document(
     )
 
     result = documents_collection.insert_one(doc)
+
+    if text_content.strip():
+        index_document(str(result.inserted_id), text_content)
 
     return {
         "ok": True,
