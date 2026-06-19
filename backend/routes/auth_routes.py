@@ -72,3 +72,61 @@ def get_me(current_user: dict = Depends(get_current_user)):
             "email": current_user["email"]
         }
     }
+
+import secrets
+from datetime import datetime, timedelta
+from pydantic import BaseModel
+from services.email_service import send_reset_email
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
+
+
+@router.post("/forgot-password")
+def forgot_password(data: ForgotPasswordRequest):
+    user = users_collection.find_one({"email": data.email.lower().strip()})
+    if not user:
+        return {"ok": True, "message": "Eğer bu email kayıtlıysa, sıfırlama bağlantısı gönderildi."}
+
+    reset_token = secrets.token_urlsafe(32)
+    expires_at = datetime.utcnow() + timedelta(minutes=30)
+
+    users_collection.update_one(
+        {"_id": user["_id"]},
+        {"$set": {"resetToken": reset_token, "resetTokenExpires": expires_at}}
+    )
+
+    reset_link = f"https://project-716py.vercel.app/reset-password?token={reset_token}"
+    send_reset_email(data.email, reset_token, reset_link)
+
+    return {"ok": True, "message": "Eğer bu email kayıtlıysa, sıfırlama bağlantısı gönderildi."}
+
+
+@router.post("/reset-password")
+def reset_password(data: ResetPasswordRequest):
+    user = users_collection.find_one({"resetToken": data.token})
+
+    if not user:
+        raise HTTPException(status_code=400, detail="Geçersiz veya kullanılmış bağlantı.")
+
+    expires_at = user.get("resetTokenExpires")
+    if not expires_at or datetime.utcnow() > expires_at:
+        raise HTTPException(status_code=400, detail="Bağlantının süresi dolmuş.")
+
+    new_hashed = hash_password(data.new_password)
+
+    users_collection.update_one(
+        {"_id": user["_id"]},
+        {
+            "$set": {"passwordHash": new_hashed},
+            "$unset": {"resetToken": "", "resetTokenExpires": ""}
+        }
+    )
+
+    return {"ok": True, "message": "Şifre başarıyla sıfırlandı."}
