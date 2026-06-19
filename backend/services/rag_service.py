@@ -38,7 +38,7 @@ def index_document(document_id: str, text: str):
     return len(chunks)
 
 
-def query_document(document_id: str, question: str, top_k: int = 6) -> list:
+def query_document(document_id: str, question: str, top_k: int = 9) -> list:
     collection = get_collection(document_id)
 
     if collection.count() == 0:
