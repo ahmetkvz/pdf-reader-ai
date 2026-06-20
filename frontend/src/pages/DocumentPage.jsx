@@ -4,6 +4,9 @@ import { documentService, analysisService, notesService } from "../services/api"
 import api from "../services/api";
 import { ArrowLeft, Play, Loader2, AlertCircle, FileText, Tag, Shield, Star, BookOpen, MessageCircle, Send, X, Download, Eye, StickyNote, Trash2, Plus, ChevronDown, ChevronUp } from "lucide-react";
 import PdfViewer from "../components/PdfViewer";
+import { Capacitor } from "@capacitor/core";
+import { Filesystem, Directory } from "@capacitor/filesystem";
+import { Share } from "@capacitor/share";
 
 const DOCTYPE_LABELS = {
   cv: { label: "CV", color: "bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300" },
@@ -143,13 +146,34 @@ export default function DocumentPage() {
   const downloadPdf = async () => {
     try {
       const res = await analysisService.exportPdf(id);
-      const url = window.URL.createObjectURL(new Blob([res.data], { type: "application/pdf" }));
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", `${doc?.originalName || "analiz"}_rapor.pdf`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
+      const fileName = `${(doc?.originalName || "analiz").replace(/\.[^/.]+$/, "")}_rapor.pdf`;
+
+      if (Capacitor.isNativePlatform()) {
+        const base64 = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result.split(",")[1]);
+          reader.onerror = reject;
+          reader.readAsDataURL(new Blob([res.data], { type: "application/pdf" }));
+        });
+        const saved = await Filesystem.writeFile({
+          path: fileName,
+          data: base64,
+          directory: Directory.Cache,
+        });
+        await Share.share({
+          title: fileName,
+          url: saved.uri,
+          dialogTitle: "PDF Raporunu Paylaş",
+        });
+      } else {
+        const url = window.URL.createObjectURL(new Blob([res.data], { type: "application/pdf" }));
+        const link = document.createElement("a");
+        link.href = url;
+        link.setAttribute("download", fileName);
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      }
     } catch {
       alert("PDF indirilemedi.");
     }
@@ -217,19 +241,19 @@ export default function DocumentPage() {
 
         {analysis && (
           <>
-            <div className="flex justify-end gap-3">
+            <div className="flex flex-wrap justify-end gap-2">
               {doc?.fileType === "pdf" && (
-                <button onClick={() => setViewerOpen(true)} className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300">
-                  <Eye size={12} />
+                <button onClick={() => setViewerOpen(true)} className="flex items-center gap-1.5 text-sm px-3 py-2 rounded-lg bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20 transition-colors">
+                  <Eye size={15} />
                   PDF Görüntüle
                 </button>
               )}
-              <button onClick={downloadPdf} className="flex items-center gap-1.5 text-xs text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300">
-                <Download size={12} />
+              <button onClick={downloadPdf} className="flex items-center gap-1.5 text-sm px-3 py-2 rounded-lg bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-500/20 transition-colors">
+                <Download size={15} />
                 PDF İndir
               </button>
-              <button onClick={runAnalysis} disabled={analyzing} className="flex items-center gap-1.5 text-xs text-indigo-500 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 disabled:opacity-50">
-                {analyzing ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} />}
+              <button onClick={runAnalysis} disabled={analyzing} className="flex items-center gap-1.5 text-sm px-3 py-2 rounded-lg bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 transition-colors disabled:opacity-50">
+                {analyzing ? <Loader2 size={15} className="animate-spin" /> : <Play size={15} />}
                 {analyzing ? "Yenileniyor..." : "Analizi Yenile"}
               </button>
             </div>
