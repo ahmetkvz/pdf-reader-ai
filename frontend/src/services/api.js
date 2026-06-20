@@ -37,3 +37,9 @@ export const analysisService = {
 };
 
 export default api;
+
+export const notesService = {
+  create: (documentId, content, pageNumber = null) => api.post(`/notes/${documentId}`, { content, page_number: pageNumber }),
+  getByDocument: (documentId) => api.get(`/notes/${documentId}`),
+  delete: (noteId) => api.delete(`/notes/${noteId}`),
+};

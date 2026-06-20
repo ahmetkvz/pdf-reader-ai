@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { documentService, analysisService } from "../services/api";
+import { documentService, analysisService, notesService } from "../services/api";
 import api from "../services/api";
-import { ArrowLeft, Play, Loader2, AlertCircle, FileText, Tag, Shield, Star, BookOpen, MessageCircle, Send, X, Download, Eye } from "lucide-react";
+import { ArrowLeft, Play, Loader2, AlertCircle, FileText, Tag, Shield, Star, BookOpen, MessageCircle, Send, X, Download, Eye, StickyNote, Trash2, Plus } from "lucide-react";
 import PdfViewer from "../components/PdfViewer";
 
 const DOCTYPE_LABELS = {
@@ -87,6 +87,10 @@ export default function DocumentPage() {
 
   const [chatOpen, setChatOpen] = useState(false);
   const [viewerOpen, setViewerOpen] = useState(false);
+  const [notes, setNotes] = useState([]);
+  const [noteText, setNoteText] = useState("");
+  const [noteLoading, setNoteLoading] = useState(false);
+  const [notesLoading, setNotesLoading] = useState(true);
   const [chatHistory, setChatHistory] = useState([]);
   const [question, setQuestion] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
@@ -103,7 +107,33 @@ export default function DocumentPage() {
       if (analysisRes) setAnalysis(analysisRes.data.analysis);
       if (chatRes) setChatHistory(chatRes.data.chatHistory || []);
     }).finally(() => setLoading(false));
+
+    notesService.getByDocument(id)
+      .then((res) => setNotes(res.data.notes || []))
+      .catch(() => {})
+      .finally(() => setNotesLoading(false));
   }, [id]);
+
+  const addNote = async () => {
+    if (!noteText.trim()) return;
+    setNoteLoading(true);
+    try {
+      const res = await notesService.create(id, noteText.trim());
+      setNotes(prev => [res.data, ...prev]);
+      setNoteText("");
+    } catch {
+    } finally {
+      setNoteLoading(false);
+    }
+  };
+
+  const deleteNote = async (noteId) => {
+    try {
+      await notesService.delete(noteId);
+      setNotes(prev => prev.filter(n => n._id !== noteId));
+    } catch {
+    }
+  };
 
   useEffect(() => {
     if (chatOpen) chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -225,6 +255,44 @@ export default function DocumentPage() {
             </Section>
             {analysis.documentType === "cv" && analysis.documentSpecificAnalysis && <CVAnalysis data={analysis.documentSpecificAnalysis} />}
             {analysis.documentType === "lecture_note" && analysis.documentSpecificAnalysis && <LectureAnalysis data={analysis.documentSpecificAnalysis} />}
+
+            <Section icon={StickyNote} title="Notlarım" color="text-amber-500">
+              <div className="flex gap-2 mb-3">
+                <input
+                  value={noteText}
+                  onChange={(e) => setNoteText(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && addNote()}
+                  placeholder="Bir not ekle..."
+                  className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+                <button
+                  onClick={addNote}
+                  disabled={noteLoading || !noteText.trim()}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg px-3 py-2 transition-colors disabled:opacity-50"
+                >
+                  {noteLoading ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
+                </button>
+              </div>
+              {notesLoading ? (
+                <div className="flex justify-center py-4"><Loader2 size={18} className="animate-spin text-gray-300" /></div>
+              ) : notes.length === 0 ? (
+                <p className="text-xs text-gray-400 text-center py-2">Henüz not eklenmedi.</p>
+              ) : (
+                <div className="space-y-2">
+                  {notes.map((note) => (
+                    <div key={note._id} className="flex items-start justify-between gap-2 bg-amber-50 rounded-lg px-3 py-2">
+                      <p className="text-sm text-gray-700 flex-1">{note.content}</p>
+                      <button
+                        onClick={() => deleteNote(note._id)}
+                        className="text-gray-300 hover:text-red-400 transition-colors shrink-0"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Section>
 
             {chatHistory.length > 0 && (
               <Section icon={MessageCircle} title="Sohbet Geçmişi" color="text-indigo-500">
