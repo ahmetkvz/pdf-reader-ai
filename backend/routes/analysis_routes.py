@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from bson import ObjectId
 
 from db.mongo import documents_collection, analyses_collection
@@ -14,6 +15,7 @@ from services.analysis_service import (
     analyze_general_with_gemini,
     detect_document_type,
 )
+from services.export_service import generate_analysis_pdf
 
 router = APIRouter(prefix="/analysis", tags=["Analysis"])
 
@@ -98,28 +100,6 @@ def run_analysis(document_id: str, current_user: dict = Depends(get_current_user
     }
 
 
-@router.get("/{document_id}")
-def get_analysis(document_id: str, current_user: dict = Depends(get_current_user)):
-    analysis = analyses_collection.find_one({
-        "documentId": document_id,
-        "userId": current_user["_id"]
-    })
-
-    if not analysis:
-        raise HTTPException(status_code=404, detail="Bu belge için analiz bulunamadı.")
-
-    analysis["_id"] = str(analysis["_id"])
-
-    return {
-        "ok": True,
-        "analysis": analysis
-    }
-
-
-from fastapi.responses import StreamingResponse
-from services.export_service import generate_analysis_pdf
-
-
 @router.get("/{document_id}/export")
 def export_analysis_pdf(document_id: str, current_user: dict = Depends(get_current_user)):
     analysis = analyses_collection.find_one({
@@ -138,5 +118,23 @@ def export_analysis_pdf(document_id: str, current_user: dict = Depends(get_curre
     return StreamingResponse(
         pdf_buffer,
         media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename=analiz_raporu.pdf"}
+        headers={"Content-Disposition": "attachment; filename=analiz_raporu.pdf"}
     )
+
+
+@router.get("/{document_id}")
+def get_analysis(document_id: str, current_user: dict = Depends(get_current_user)):
+    analysis = analyses_collection.find_one({
+        "documentId": document_id,
+        "userId": current_user["_id"]
+    })
+
+    if not analysis:
+        raise HTTPException(status_code=404, detail="Bu belge için analiz bulunamadı.")
+
+    analysis["_id"] = str(analysis["_id"])
+
+    return {
+        "ok": True,
+        "analysis": analysis
+    }
