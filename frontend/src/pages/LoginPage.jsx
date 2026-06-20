@@ -44,6 +44,7 @@ export default function LoginPage() {
             <div>
               <label className="block text-sm text-gray-600 mb-1">Şifre</label>
               <input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="••••••••" required />
+              <div className="text-right mt-1"><Link to="/forgot-password" className="text-xs text-indigo-500 hover:underline">Şifremi unuttum</Link></div>
             </div>
             <button type="submit" disabled={loading} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg py-2.5 text-sm font-medium flex items-center justify-center gap-2 transition-colors disabled:opacity-60">
               <LogIn size={16} />
