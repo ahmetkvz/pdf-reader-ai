@@ -33,13 +33,16 @@ def chat_with_document(
         raise HTTPException(status_code=404, detail="Belge bulunamadı.")
 
     relevant_chunks = query_document(document_id, body.question, top_k=6)
+    full_text = doc.get("textContent", "").strip()
 
     if relevant_chunks:
-        context = "\n\n---\n\n".join(relevant_chunks)
+        chunks_context = "\n\n---\n\n".join(relevant_chunks)
+        # Alakalı parçalara ek olarak belgenin başını da ekle (keyword tutmayan sorular için güvenlik)
+        context = chunks_context + "\n\n---\n\n" + full_text[:3000]
     else:
-        context = doc.get("textContent", "").strip()[:2000]
+        context = full_text[:4000]
 
-    if not context:
+    if not context.strip():
         raise HTTPException(status_code=400, detail="Belge içeriği boş.")
 
     prompt = f"""Sen bir belge asistanısın. Sana belge içinden alınmış parçalar verilecek.
