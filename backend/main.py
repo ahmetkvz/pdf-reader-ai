@@ -17,7 +17,7 @@ app = FastAPI(title="PDF Reader AI API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://project-716py.vercel.app", "http://localhost:5173"],
+    allow_origins=["https://project-716py.vercel.app", "http://localhost:5173", "https://localhost", "capacitor://localhost", "http://localhost"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
