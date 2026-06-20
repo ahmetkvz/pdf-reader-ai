@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
+from fastapi.responses import Response
 from pathlib import Path
 import time
+import base64
 
 from db.mongo import documents_collection
 from core.dependencies import get_current_user
@@ -23,7 +25,7 @@ def _safe_filename(name: str) -> str:
 def get_my_documents(current_user: dict = Depends(get_current_user)):
     docs = list(
         documents_collection
-        .find({"userId": current_user["_id"]})
+        .find({"userId": current_user["_id"]}, {"fileData": 0})
         .sort("uploadDate", -1)
     )
 
@@ -57,23 +59,19 @@ async def upload_document(
 
     file_type = "unknown"
     text_content = ""
+    file_data_b64 = ""
 
     if file.filename.lower().endswith(".pdf"):
         file_type = "pdf"
         text_content = extract_text_from_pdf(save_path, max_pages=20)
-
+        file_data_b64 = base64.b64encode(content).decode("utf-8")
     elif file.filename.lower().endswith(".txt"):
         file_type = "txt"
         text_content = content.decode("utf-8", errors="ignore")
-
     else:
         file_type = "unknown"
 
-    # ÖNEMLİ:
-    # Belge türü tespiti PDF/TXT ayrımından sonra yapılmalı.
-    # Böylece PDF veya TXT dosyalarında da çalışır.
     document_type = detect_document_type(text_content, file.filename)
-
 
     doc = document_record(
         user_id=current_user["_id"],
@@ -81,7 +79,8 @@ async def upload_document(
         stored_filename=safe_name,
         file_type=file_type,
         document_type=document_type,
-        text_content=text_content
+        text_content=text_content,
+        file_data=file_data_b64
     )
 
     result = documents_collection.insert_one(doc)
@@ -98,6 +97,31 @@ async def upload_document(
         "fileType": file_type,
         "documentType": document_type
     }
+
+
+@router.get("/{document_id}/file")
+def get_document_file(document_id: str, current_user: dict = Depends(get_current_user)):
+    from bson import ObjectId
+
+    try:
+        doc = documents_collection.find_one({
+            "_id": ObjectId(document_id),
+            "userId": current_user["_id"]
+        })
+    except Exception:
+        raise HTTPException(status_code=400, detail="Geçersiz document id.")
+
+    if not doc:
+        raise HTTPException(status_code=404, detail="Belge bulunamadı.")
+
+    file_data_b64 = doc.get("fileData", "")
+    if not file_data_b64:
+        raise HTTPException(status_code=404, detail="Bu belge için dosya verisi bulunamadı.")
+
+    file_bytes = base64.b64decode(file_data_b64)
+
+    return Response(content=file_bytes, media_type="application/pdf")
+
 
 @router.delete("/{document_id}")
 async def delete_document(
