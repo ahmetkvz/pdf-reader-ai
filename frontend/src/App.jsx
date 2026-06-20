@@ -6,6 +6,7 @@ import HomePage from "./pages/HomePage";
 import DocumentPage from "./pages/DocumentPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
+import ProfilePage from "./pages/ProfilePage";
 import { Loader2 } from "lucide-react";
 
 function PrivateRoute({ children }) {
@@ -31,6 +32,7 @@ export default function App() {
           <Route path="/reset-password" element={<PublicRoute><ResetPasswordPage /></PublicRoute>} />
           <Route path="/" element={<PrivateRoute><HomePage /></PrivateRoute>} />
           <Route path="/document/:id" element={<PrivateRoute><DocumentPage /></PrivateRoute>} />
+          <Route path="/profile" element={<PrivateRoute><ProfilePage /></PrivateRoute>} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>
