@@ -6,9 +6,9 @@ import { ArrowLeft, Play, Loader2, AlertCircle, FileText, Tag, Shield, Star, Boo
 import PdfViewer from "../components/PdfViewer";
 
 const DOCTYPE_LABELS = {
-  cv: { label: "CV", color: "bg-blue-100 text-blue-700" },
-  lecture_note: { label: "Ders Notu", color: "bg-purple-100 text-purple-700" },
-  general: { label: "Genel", color: "bg-gray-100 text-gray-600" },
+  cv: { label: "CV", color: "bg-blue-100 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300" },
+  lecture_note: { label: "Ders Notu", color: "bg-purple-100 text-purple-700 dark:bg-purple-500/15 dark:text-purple-300" },
+  general: { label: "Genel", color: "bg-gray-100 text-gray-600 dark:bg-slate-700 dark:text-slate-300" },
 };
 
 const SENSITIVE_LABELS = {
@@ -17,10 +17,10 @@ const SENSITIVE_LABELS = {
 
 function Section({ icon: Icon, title, children, color = "text-indigo-500" }) {
   return (
-    <div className="bg-white border border-gray-200 rounded-2xl p-4">
+    <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/50 rounded-2xl p-4">
       <div className="flex items-center gap-2 mb-3">
         <Icon size={17} className={color} />
-        <h3 className="text-sm font-semibold text-gray-700">{title}</h3>
+        <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">{title}</h3>
       </div>
       {children}
     </div>
@@ -32,22 +32,22 @@ function CVAnalysis({ data }) {
     <div className="space-y-3">
       {data.strongSides?.length > 0 && (
         <Section icon={Star} title="Güçlü Yönler" color="text-amber-500">
-          <ul className="space-y-1.5">{data.strongSides.map((s, i) => <li key={i} className="text-sm text-gray-600 flex items-start gap-2"><span className="text-amber-400 mt-0.5">•</span>{s}</li>)}</ul>
+          <ul className="space-y-1.5">{data.strongSides.map((s, i) => <li key={i} className="text-sm text-slate-600 dark:text-slate-300 flex items-start gap-2"><span className="text-amber-400 mt-0.5">•</span>{s}</li>)}</ul>
         </Section>
       )}
       {data.technicalSkills?.length > 0 && (
         <Section icon={Tag} title="Teknik Beceriler" color="text-blue-500">
-          <div className="flex flex-wrap gap-1.5">{data.technicalSkills.map((s, i) => <span key={i} className="bg-blue-50 text-blue-700 text.xs px-2.5 py-1 rounded-full font-medium">{s}</span>)}</div>
+          <div className="flex flex-wrap gap-1.5">{data.technicalSkills.map((s, i) => <span key={i} className="bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300 text-xs px-2.5 py-1 rounded-full font-medium">{s}</span>)}</div>
         </Section>
       )}
       {data.improvementSuggestions?.length > 0 && (
         <Section icon={AlertCircle} title="Öneriler" color="text-orange-400">
-          <ul className="space-y-1.5">{data.improvementSuggestions.map((s, i) => <li key={i} className="text-sm text-gray-600 flex items-start gap-2"><span className="text-orange-300 mt-0.5">•</span>{s}</li>)}</ul>
+          <ul className="space-y-1.5">{data.improvementSuggestions.map((s, i) => <li key={i} className="text-sm text-slate-600 dark:text-slate-300 flex items-start gap-2"><span className="text-orange-300 mt-0.5">•</span>{s}</li>)}</ul>
         </Section>
       )}
       {data.careerAdvice && (
         <Section icon={Star} title="Kariyer Tavsiyesi" color="text-green-500">
-          <p className="text-sm text-gray-600 leading-relaxed">{data.careerAdvice}</p>
+          <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">{data.careerAdvice}</p>
         </Section>
       )}
     </div>
@@ -59,17 +59,17 @@ function LectureAnalysis({ data }) {
     <div className="space-y-3">
       {data.examFocusedNotes?.length > 0 && (
         <Section icon={BookOpen} title="Sınav Notları" color="text-purple-500">
-          <ul className="space-y-1.5">{data.examFocusedNotes.map((s, i) => <li key={i} className="text-sm text-gray-600 flex items-start gap-2"><span className="text-purple-300 mt-0.5">•</span>{s}</li>)}</ul>
+          <ul className="space-y-1.5">{data.examFocusedNotes.map((s, i) => <li key={i} className="text-sm text-slate-600 dark:text-slate-300 flex items-start gap-2"><span className="text-purple-300 mt-0.5">•</span>{s}</li>)}</ul>
         </Section>
       )}
       {data.studySuggestions?.length > 0 && (
         <Section icon={Star} title="Çalışma Önerileri" color="text-amber-500">
-          <ul className="space-y-1.5">{data.studySuggestions.map((s, i) => <li key={i} className="text-sm text-gray-600 flex items-start gap-2"><span className="text-amber-300 mt-0.5">•</span>{s}</li>)}</ul>
+          <ul className="space-y-1.5">{data.studySuggestions.map((s, i) => <li key={i} className="text-sm text-slate-600 dark:text-slate-300 flex items-start gap-2"><span className="text-amber-300 mt-0.5">•</span>{s}</li>)}</ul>
         </Section>
       )}
       {data.possibleExamQuestions?.length > 0 && (
         <Section icon={BookOpen} title="Olası Sınav Soruları" color="text-red-400">
-          <ul className="space-y-1.5">{data.possibleExamQuestions.map((s, i) => <li key={i} className="text-sm text-gray-600 flex items-start gap-2"><span className="text-red-300 mt-0.5">•</span>{s}</li>)}</ul>
+          <ul className="space-y-1.5">{data.possibleExamQuestions.map((s, i) => <li key={i} className="text-sm text-slate-600 dark:text-slate-300 flex items-start gap-2"><span className="text-red-300 mt-0.5">•</span>{s}</li>)}</ul>
         </Section>
       )}
     </div>
@@ -185,28 +185,30 @@ export default function DocumentPage() {
     }
   };
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="animate-spin text-indigo-400" size={28} /></div>;
+  if (loading) return <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900"><Loader2 className="animate-spin text-indigo-400" size={28} /></div>;
 
   const typeInfo = DOCTYPE_LABELS[doc?.documentType] || DOCTYPE_LABELS.general;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-200 px-4 py-3 flex items-center gap-3 sticky top-0 z-10">
-        <button onClick={() => navigate("/")} className="text-gray-400 hover:text-gray-700 transition-colors"><ArrowLeft size={20} /></button>
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 transition-colors">
+      <header className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-lg border-b border-slate-200 dark:border-slate-700/50 px-4 py-3 flex items-center gap-3 sticky top-0 z-10">
+        <button onClick={() => navigate("/")} className="text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors"><ArrowLeft size={20} /></button>
         <div className="flex items-center gap-2 min-w-0">
           <FileText size={18} className="text-indigo-400 shrink-0" />
-          <span className="text-sm font-medium text-gray-700 truncate">{doc?.originalName || "Belge"}</span>
+          <span className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">{doc?.originalName || "Belge"}</span>
           <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${typeInfo.color}`}>{typeInfo.label}</span>
         </div>
       </header>
 
       <main className="max-w-2xl mx-auto px-4 py-6 space-y-4 pb-24">
         {!analysis && (
-          <div className="bg-white border border-gray-200 rounded-2xl p-5 text-center">
-            <FileText size={36} className="text-indigo-300 mx-auto mb-3" />
-            <p className="text-sm text-gray-600 mb-4">Bu belge henüz analiz edilmedi.</p>
-            {error && <div className="flex items-center justify-center gap-1.5 text-red-500 text-sm mb-3"><AlertCircle size={14} />{error}</div>}
-            <button onClick={runAnalysis} disabled={analyzing} className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-5 py-2.5 text-sm font-medium flex items-center gap-2 mx-auto transition-colors disabled:opacity-60">
+          <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/50 rounded-2xl p-5 text-center">
+            <div className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl p-3 w-fit mx-auto mb-3 shadow-lg shadow-indigo-500/20">
+              <FileText size={28} className="text-white" />
+            </div>
+            <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">Bu belge henüz analiz edilmedi.</p>
+            {error && <div className="flex items-center justify-center gap-1.5 text-red-500 dark:text-red-400 text-sm mb-3"><AlertCircle size={14} />{error}</div>}
+            <button onClick={runAnalysis} disabled={analyzing} className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white rounded-xl px-5 py-2.5 text-sm font-medium flex items-center gap-2 mx-auto transition-all shadow-lg shadow-indigo-500/30 disabled:opacity-60">
               {analyzing ? <Loader2 size={15} className="animate-spin" /> : <Play size={15} />}
               {analyzing ? "Analiz ediliyor..." : "Analizi Başlat"}
             </button>
@@ -217,39 +219,39 @@ export default function DocumentPage() {
           <>
             <div className="flex justify-end gap-3">
               {doc?.fileType === "pdf" && (
-                <button onClick={() => setViewerOpen(true)} className="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-700">
+                <button onClick={() => setViewerOpen(true)} className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300">
                   <Eye size={12} />
                   PDF Görüntüle
                 </button>
               )}
-              <button onClick={downloadPdf} className="flex items-center gap-1.5 text-xs text-green-600 hover:text-green-700">
+              <button onClick={downloadPdf} className="flex items-center gap-1.5 text-xs text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300">
                 <Download size={12} />
                 PDF İndir
               </button>
-              <button onClick={runAnalysis} disabled={analyzing} className="flex items-center gap-1.5 text-xs text-indigo-500 hover:text-indigo-700 disabled:opacity-50">
+              <button onClick={runAnalysis} disabled={analyzing} className="flex items-center gap-1.5 text-xs text-indigo-500 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 disabled:opacity-50">
                 {analyzing ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} />}
                 {analyzing ? "Yenileniyor..." : "Analizi Yenile"}
               </button>
             </div>
-            <Section icon={FileText} title="Özet"><p className="text-sm text-gray-600 leading-relaxed">{analysis.summary}</p></Section>
+            <Section icon={FileText} title="Özet"><p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">{analysis.summary}</p></Section>
             {analysis.importantPoints?.length > 0 && (
               <Section icon={Star} title="Önemli Noktalar" color="text-amber-500">
-                <ul className="space-y-2">{analysis.importantPoints.map((p, i) => <li key={i} className="text-sm text-gray-600 flex items-start gap-2"><span className="text-amber-400 font-bold mt-0.5 shrink-0">{i + 1}.</span>{p}</li>)}</ul>
+                <ul className="space-y-2">{analysis.importantPoints.map((p, i) => <li key={i} className="text-sm text-slate-600 dark:text-slate-300 flex items-start gap-2"><span className="text-amber-400 font-bold mt-0.5 shrink-0">{i + 1}.</span>{p}</li>)}</ul>
               </Section>
             )}
             {analysis.keywords?.length > 0 && (
               <Section icon={Tag} title="Anahtar Kelimeler" color="text-green-500">
-                <div className="flex flex-wrap gap-1.5">{analysis.keywords.map((kw, i) => <span key={i} className="bg-green-50 text-green-700 text-xs px-2.5 py-1 rounded-full font-medium">{kw}</span>)}</div>
+                <div className="flex flex-wrap gap-1.5">{analysis.keywords.map((kw, i) => <span key={i} className="bg-green-50 text-green-700 dark:bg-green-500/15 dark:text-green-300 text-xs px-2.5 py-1 rounded-full font-medium">{kw}</span>)}</div>
               </Section>
             )}
             <Section icon={Shield} title="Hassas Veri Tespiti" color="text-red-400">
               {analysis.sensitiveFindings?.length === 0 ? (
-                <p className="text-sm text-green-600 flex items-center gap-1.5"><Shield size={14} /> Hassas veri tespit edilmedi.</p>
+                <p className="text-sm text-green-600 dark:text-green-400 flex items-center gap-1.5"><Shield size={14} /> Hassas veri tespit edilmedi.</p>
               ) : (
                 <div className="space-y-2">{analysis.sensitiveFindings.map((f, i) => (
-                  <div key={i} className="bg-red-50 rounded-xl px-3 py-2">
-                    <p className="text-xs font-semibold text-red-600 mb-1">{SENSITIVE_LABELS[f.type] || f.type} ({f.count} adet)</p>
-                    <div className="flex flex-wrap gap-1">{f.samples.map((s, j) => <span key={j} className="bg-red-100 text-red-700 text-xs px-2 py-0.5 rounded-md font-mono">{s}</span>)}</div>
+                  <div key={i} className="bg-red-50 dark:bg-red-500/10 rounded-xl px-3 py-2">
+                    <p className="text-xs font-semibold text-red-600 dark:text-red-400 mb-1">{SENSITIVE_LABELS[f.type] || f.type} ({f.count} adet)</p>
+                    <div className="flex flex-wrap gap-1">{f.samples.map((s, j) => <span key={j} className="bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300 text-xs px-2 py-0.5 rounded-md font-mono">{s}</span>)}</div>
                   </div>
                 ))}</div>
               )}
@@ -264,7 +266,7 @@ export default function DocumentPage() {
                   onChange={(e) => setNoteText(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && addNote()}
                   placeholder="Bir not ekle..."
-                  className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="flex-1 bg-white dark:bg-slate-900/50 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-white rounded-lg px-3 py-2 text-sm placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
                 <button
                   onClick={addNote}
@@ -275,17 +277,17 @@ export default function DocumentPage() {
                 </button>
               </div>
               {notesLoading ? (
-                <div className="flex justify-center py-4"><Loader2 size={18} className="animate-spin text-gray-300" /></div>
+                <div className="flex justify-center py-4"><Loader2 size={18} className="animate-spin text-slate-300 dark:text-slate-600" /></div>
               ) : notes.length === 0 ? (
-                <p className="text-xs text-gray-400 text-center py-2">Henüz not eklenmedi.</p>
+                <p className="text-xs text-slate-400 dark:text-slate-500 text-center py-2">Henüz not eklenmedi.</p>
               ) : (
                 <div className="space-y-2">
                   {notes.map((note) => (
-                    <div key={note._id} className="flex items-start justify-between gap-2 bg-amber-50 rounded-lg px-3 py-2">
-                      <p className="text-sm text-gray-700 flex-1">{note.content}</p>
+                    <div key={note._id} className="flex items-start justify-between gap-2 bg-amber-50 dark:bg-amber-500/10 rounded-lg px-3 py-2">
+                      <p className="text-sm text-slate-700 dark:text-slate-200 flex-1">{note.content}</p>
                       <button
                         onClick={() => deleteNote(note._id)}
-                        className="text-gray-300 hover:text-red-400 transition-colors shrink-0"
+                        className="text-slate-300 dark:text-slate-600 hover:text-red-400 dark:hover:text-red-400 transition-colors shrink-0"
                       >
                         <Trash2 size={13} />
                       </button>
@@ -296,24 +298,24 @@ export default function DocumentPage() {
             </Section>
 
             {chatHistory.length > 0 && (
-              <div className="bg-white border border-gray-200 rounded-2xl p-4">
+              <div className="bg-white dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/50 rounded-2xl p-4">
                 <button
                   onClick={() => setChatExpanded(!chatExpanded)}
                   className="w-full flex items-center justify-between"
                 >
                   <div className="flex items-center gap-2">
                     <MessageCircle size={17} className="text-indigo-500" />
-                    <h3 className="text-sm font-semibold text-gray-700">Sohbet Geçmişi</h3>
-                    <span className="text-xs text-gray-400">({chatHistory.length})</span>
+                    <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Sohbet Geçmişi</h3>
+                    <span className="text-xs text-slate-400 dark:text-slate-500">({chatHistory.length})</span>
                   </div>
-                  {chatExpanded ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+                  {chatExpanded ? <ChevronUp size={16} className="text-slate-400" /> : <ChevronDown size={16} className="text-slate-400" />}
                 </button>
                 {chatExpanded && (
                   <div className="space-y-3 max-h-60 overflow-y-auto mt-3">
                     {chatHistory.map((m, i) => (
                       <div key={i} className="space-y-1">
                         <div className="flex justify-end"><span className="bg-indigo-600 text-white text-sm px-3 py-2 rounded-2xl rounded-tr-sm max-w-xs">{m.question}</span></div>
-                        {m.answer && <div className="flex justify-start"><span className="bg-white border border-gray-200 text-gray-700 text-sm px-3 py-2 rounded-2xl rounded-tl-sm max-w-xs">{m.answer}</span></div>}
+                        {m.answer && <div className="flex justify-start"><span className="bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-sm px-3 py-2 rounded-2xl rounded-tl-sm max-w-xs">{m.answer}</span></div>}
                       </div>
                     ))}
                   </div>
@@ -328,7 +330,7 @@ export default function DocumentPage() {
       {analysis && (
         <button
           onClick={() => setChatOpen(true)}
-          className="fixed bottom-6 right-6 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full p-4 shadow-lg transition-colors z-20"
+          className="fixed bottom-6 right-6 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white rounded-full p-4 shadow-lg shadow-indigo-500/40 transition-all z-20"
         >
           <MessageCircle size={24} />
         </button>
@@ -337,40 +339,41 @@ export default function DocumentPage() {
       {/* Chat panel */}
       {chatOpen && (
         <div className="fixed inset-0 z-30 flex items-end sm:items-center justify-center sm:justify-end sm:pr-6 sm:pb-6">
-          <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full sm:w-96 h-[70vh] sm:h-[500px] flex flex-col border border-gray-200">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+          <div className="absolute inset-0 bg-black/30 sm:bg-transparent" onClick={() => setChatOpen(false)} />
+          <div className="relative bg-white dark:bg-slate-800 rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:w-96 h-[70vh] sm:h-[500px] flex flex-col border border-slate-200 dark:border-slate-700">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-slate-700">
               <div className="flex items-center gap-2">
                 <MessageCircle size={18} className="text-indigo-500" />
-                <span className="text-sm font-semibold text-gray-700">Belgeyle Sohbet</span>
+                <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">Belgeyle Sohbet</span>
               </div>
-              <button onClick={() => setChatOpen(false)} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
+              <button onClick={() => setChatOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><X size={18} /></button>
             </div>
 
             <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
               {chatHistory.length === 0 && (
-                <p className="text-xs text-gray-400 text-center mt-8">Belge hakkında bir şeyler sor!</p>
+                <p className="text-xs text-slate-400 dark:text-slate-500 text-center mt-8">Belge hakkında bir şeyler sor!</p>
               )}
               {chatHistory.map((m, i) => (
                 <div key={i} className="space-y-1">
                   <div className="flex justify-end"><span className="bg-indigo-600 text-white text-sm px-3 py-2 rounded-2xl rounded-tr-sm max-w-xs leading-relaxed">{m.question}</span></div>
                   {m.answer ? (
-                    <div className="flex justify-start"><span className="bg-gray-100 text-gray-700 text-sm px-3 py-2 rounded-2xl rounded-tl-sm max-w-xs leading-relaxed">{m.answer}</span></div>
+                    <div className="flex justify-start"><span className="bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-sm px-3 py-2 rounded-2xl rounded-tl-sm max-w-xs leading-relaxed">{m.answer}</span></div>
                   ) : (
-                    <div className="flex justify-start"><span className="bg-gray-100 text-gray-400 text-sm px-3 py-2 rounded-2xl rounded-tl-sm"><Loader2 size={14} className="animate-spin" /></span></div>
+                    <div className="flex justify-start"><span className="bg-slate-100 dark:bg-slate-700 text-slate-400 text-sm px-3 py-2 rounded-2xl rounded-tl-sm"><Loader2 size={14} className="animate-spin" /></span></div>
                   )}
                 </div>
               ))}
               <div ref={chatEndRef} />
             </div>
 
-            <div className="px-4 py-3 border-t border-gray-100">
+            <div className="px-4 py-3 border-t border-slate-100 dark:border-slate-700">
               <div className="flex gap-2">
                 <input
                   value={question}
                   onChange={(e) => setQuestion(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && sendQuestion()}
                   placeholder="Bir soru sor..."
-                  className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="flex-1 bg-white dark:bg-slate-900/50 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-white rounded-xl px-3 py-2 text-sm placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
                 <button
                   onClick={sendQuestion}
