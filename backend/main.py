@@ -8,7 +8,8 @@ from db.mongo import db
 from routes.auth_routes import router as auth_router
 from routes.document_routes import router as document_router
 from routes.analysis_routes import router as analysis_router
-from routes.chat_routes import router as chat_router 
+from routes.chat_routes import router as chat_router
+from routes.notes_routes import router as notes_router 
 import time
 import re
 
@@ -27,6 +28,7 @@ app.include_router(auth_router)
 app.include_router(document_router)
 app.include_router(analysis_router)
 app.include_router(chat_router)
+app.include_router(notes_router)
 
 UPLOAD_DIR = Path(__file__).parent / "uploads"
 UPLOAD_DIR.mkdir(exist_ok=True)
