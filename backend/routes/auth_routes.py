@@ -130,3 +130,34 @@ def reset_password(data: ResetPasswordRequest):
     )
 
     return {"ok": True, "message": "Şifre başarıyla sıfırlandı."}
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
+@router.post("/change-password")
+def change_password(
+    data: ChangePasswordRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    user = users_collection.find_one({"_id": ObjectId(current_user["_id"])})
+
+    if not user:
+        raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı.")
+
+    if not verify_password(data.current_password, user["passwordHash"]):
+        raise HTTPException(status_code=401, detail="Mevcut şifre yanlış.")
+
+    if len(data.new_password) < 6:
+        raise HTTPException(status_code=400, detail="Yeni şifre en az 6 karakter olmalı.")
+
+    new_hashed = hash_password(data.new_password)
+
+    users_collection.update_one(
+        {"_id": user["_id"]},
+        {"$set": {"passwordHash": new_hashed}}
+    )
+
+    return {"ok": True, "message": "Şifre başarıyla değiştirildi."}
