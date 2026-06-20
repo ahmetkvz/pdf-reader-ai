@@ -30,6 +30,7 @@ export const documentService = {
 };
 
 export const analysisService = {
+  exportPdf: (documentId) => api.get(`/analysis/${documentId}/export`, { responseType: "blob" }),
   run: (documentId) => api.post(`/analysis/run/${documentId}`),
   get: (documentId) => api.get(`/analysis/${documentId}`),
 };

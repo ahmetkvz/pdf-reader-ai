@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { documentService, analysisService } from "../services/api";
 import api from "../services/api";
-import { ArrowLeft, Play, Loader2, AlertCircle, FileText, Tag, Shield, Star, BookOpen, MessageCircle, Send, X } from "lucide-react";
+import { ArrowLeft, Play, Loader2, AlertCircle, FileText, Tag, Shield, Star, BookOpen, MessageCircle, Send, X, Download } from "lucide-react";
 
 const DOCTYPE_LABELS = {
   cv: { label: "CV", color: "bg-blue-100 text-blue-700" },
@@ -107,6 +107,21 @@ export default function DocumentPage() {
     if (chatOpen) chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatHistory, chatOpen]);
 
+  const downloadPdf = async () => {
+    try {
+      const res = await analysisService.exportPdf(id);
+      const url = window.URL.createObjectURL(new Blob([res.data], { type: "application/pdf" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", `${doc?.originalName || "analiz"}_rapor.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch {
+      alert("PDF indirilemedi.");
+    }
+  };
+
   const runAnalysis = async () => {
     setAnalyzing(true);
     setError("");
@@ -167,7 +182,11 @@ export default function DocumentPage() {
 
         {analysis && (
           <>
-            <div className="flex justify-end">
+            <div className="flex justify-end gap-3">
+              <button onClick={downloadPdf} className="flex items-center gap-1.5 text-xs text-green-600 hover:text-green-700">
+                <Download size={12} />
+                PDF İndir
+              </button>
               <button onClick={runAnalysis} disabled={analyzing} className="flex items-center gap-1.5 text-xs text-indigo-500 hover:text-indigo-700 disabled:opacity-50">
                 {analyzing ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} />}
                 {analyzing ? "Yenileniyor..." : "Analizi Yenile"}
