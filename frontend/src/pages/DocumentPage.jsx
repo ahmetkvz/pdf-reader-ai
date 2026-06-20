@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { documentService, analysisService } from "../services/api";
 import api from "../services/api";
-import { ArrowLeft, Play, Loader2, AlertCircle, FileText, Tag, Shield, Star, BookOpen, MessageCircle, Send, X, Download } from "lucide-react";
+import { ArrowLeft, Play, Loader2, AlertCircle, FileText, Tag, Shield, Star, BookOpen, MessageCircle, Send, X, Download, Eye } from "lucide-react";
+import PdfViewer from "../components/PdfViewer";
 
 const DOCTYPE_LABELS = {
   cv: { label: "CV", color: "bg-blue-100 text-blue-700" },
@@ -85,6 +86,7 @@ export default function DocumentPage() {
   const [error, setError] = useState("");
 
   const [chatOpen, setChatOpen] = useState(false);
+  const [viewerOpen, setViewerOpen] = useState(false);
   const [chatHistory, setChatHistory] = useState([]);
   const [question, setQuestion] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
@@ -183,6 +185,12 @@ export default function DocumentPage() {
         {analysis && (
           <>
             <div className="flex justify-end gap-3">
+              {doc?.fileType === "pdf" && (
+                <button onClick={() => setViewerOpen(true)} className="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-700">
+                  <Eye size={12} />
+                  PDF Görüntüle
+                </button>
+              )}
               <button onClick={downloadPdf} className="flex items-center gap-1.5 text-xs text-green-600 hover:text-green-700">
                 <Download size={12} />
                 PDF İndir
@@ -293,6 +301,10 @@ export default function DocumentPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {viewerOpen && (
+        <PdfViewer documentId={id} onClose={() => setViewerOpen(false)} />
       )}
     </div>
   );

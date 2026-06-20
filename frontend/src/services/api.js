@@ -20,6 +20,7 @@ export const authService = {
 };
 
 export const documentService = {
+  getFileUrl: (documentId) => `${api.defaults.baseURL}/documents/${documentId}/file`,
   upload: (file) => {
     const form = new FormData();
     form.append("file", file);
