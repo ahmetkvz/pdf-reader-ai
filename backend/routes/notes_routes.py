@@ -37,6 +37,7 @@ def create_note(
 
     return {
         "ok": True,
+        "_id": str(result.inserted_id),
         "noteId": str(result.inserted_id),
         "content": note["content"],
         "pageNumber": note["pageNumber"],
