@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { documentService, analysisService, notesService } from "../services/api";
 import api from "../services/api";
-import { ArrowLeft, Play, Loader2, AlertCircle, FileText, Tag, Shield, Star, BookOpen, MessageCircle, Send, X, Download, Eye, StickyNote, Trash2, Plus } from "lucide-react";
+import { ArrowLeft, Play, Loader2, AlertCircle, FileText, Tag, Shield, Star, BookOpen, MessageCircle, Send, X, Download, Eye, StickyNote, Trash2, Plus, ChevronDown, ChevronUp } from "lucide-react";
 import PdfViewer from "../components/PdfViewer";
 
 const DOCTYPE_LABELS = {
@@ -91,6 +91,7 @@ export default function DocumentPage() {
   const [noteText, setNoteText] = useState("");
   const [noteLoading, setNoteLoading] = useState(false);
   const [notesLoading, setNotesLoading] = useState(true);
+  const [chatExpanded, setChatExpanded] = useState(false);
   const [chatHistory, setChatHistory] = useState([]);
   const [question, setQuestion] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
@@ -295,16 +296,29 @@ export default function DocumentPage() {
             </Section>
 
             {chatHistory.length > 0 && (
-              <Section icon={MessageCircle} title="Sohbet Geçmişi" color="text-indigo-500">
-                <div className="space-y-3 max-h-60 overflow-y-auto">
-                  {chatHistory.map((m, i) => (
-                    <div key={i} className="space-y-1">
-                      <div className="flex justify-end"><span className="bg-indigo-600 text-white text-sm px-3 py-2 rounded-2xl rounded-tr-sm max-w-xs">{m.question}</span></div>
-                      {m.answer && <div className="flex justify-start"><span className="bg-white border border-gray-200 text-gray-700 text-sm px-3 py-2 rounded-2xl rounded-tl-sm max-w-xs">{m.answer}</span></div>}
-                    </div>
-                  ))}
-                </div>
-              </Section>
+              <div className="bg-white border border-gray-200 rounded-2xl p-4">
+                <button
+                  onClick={() => setChatExpanded(!chatExpanded)}
+                  className="w-full flex items-center justify-between"
+                >
+                  <div className="flex items-center gap-2">
+                    <MessageCircle size={17} className="text-indigo-500" />
+                    <h3 className="text-sm font-semibold text-gray-700">Sohbet Geçmişi</h3>
+                    <span className="text-xs text-gray-400">({chatHistory.length})</span>
+                  </div>
+                  {chatExpanded ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+                </button>
+                {chatExpanded && (
+                  <div className="space-y-3 max-h-60 overflow-y-auto mt-3">
+                    {chatHistory.map((m, i) => (
+                      <div key={i} className="space-y-1">
+                        <div className="flex justify-end"><span className="bg-indigo-600 text-white text-sm px-3 py-2 rounded-2xl rounded-tr-sm max-w-xs">{m.question}</span></div>
+                        {m.answer && <div className="flex justify-start"><span className="bg-white border border-gray-200 text-gray-700 text-sm px-3 py-2 rounded-2xl rounded-tl-sm max-w-xs">{m.answer}</span></div>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
           </>
         )}
