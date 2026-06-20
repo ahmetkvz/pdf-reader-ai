@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate, Link } from "react-router-dom";
 import { FileText, UserPlus } from "lucide-react";
+import PasswordInput from "../components/PasswordInput";
 
 export default function RegisterPage() {
   const { register } = useAuth();
@@ -47,7 +48,7 @@ export default function RegisterPage() {
             </div>
             <div>
               <label className="block text-sm text-gray-600 mb-1">Şifre</label>
-              <input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="••••••••" required />
+              <PasswordInput value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required />
             </div>
             <button type="submit" disabled={loading} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg py-2.5 text-sm font-medium flex items-center justify-center gap-2 transition-colors disabled:opacity-60">
               <UserPlus size={16} />

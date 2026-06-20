@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { authService } from "../services/api";
 import { ArrowLeft, User, Lock, LogOut, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
+import PasswordInput from "../components/PasswordInput";
 
 export default function ProfilePage() {
   const { user, logout } = useAuth();
@@ -87,34 +88,25 @@ export default function ProfilePage() {
           <form onSubmit={handleSubmit} className="space-y-3">
             <div>
               <label className="block text-xs text-gray-600 mb-1">Mevcut Şifre</label>
-              <input
-                type="password"
+              <PasswordInput
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                placeholder="••••••••"
                 required
               />
             </div>
             <div>
               <label className="block text-xs text-gray-600 mb-1">Yeni Şifre</label>
-              <input
-                type="password"
+              <PasswordInput
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                placeholder="••••••••"
                 required
               />
             </div>
             <div>
               <label className="block text-xs text-gray-600 mb-1">Yeni Şifre (Tekrar)</label>
-              <input
-                type="password"
+              <PasswordInput
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                placeholder="••••••••"
                 required
               />
             </div>
