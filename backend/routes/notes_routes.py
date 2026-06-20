@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from typing import Optional
 from datetime import datetime
 from bson import ObjectId
 
@@ -12,7 +13,7 @@ notes_collection = db["notes"]
 
 class NoteRequest(BaseModel):
     content: str
-    page_number: int = None
+    page_number: Optional[int] = None
 
 
 @router.post("/{document_id}")
