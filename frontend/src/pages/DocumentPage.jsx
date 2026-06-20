@@ -174,7 +174,12 @@ export default function DocumentPage() {
         link.click();
         link.remove();
       }
-    } catch {
+    } catch (err) {
+      const msg = String(err?.message || err || "");
+      // Kullanıcı paylaşımı iptal ettiyse hata gösterme
+      if (msg.toLowerCase().includes("cancel") || msg.toLowerCase().includes("abort") || msg.includes("İptal")) {
+        return;
+      }
       alert("PDF indirilemedi.");
     }
   };
