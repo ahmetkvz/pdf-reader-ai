@@ -114,3 +114,29 @@ def get_analysis(document_id: str, current_user: dict = Depends(get_current_user
         "ok": True,
         "analysis": analysis
     }
+
+
+from fastapi.responses import StreamingResponse
+from services.export_service import generate_analysis_pdf
+
+
+@router.get("/{document_id}/export")
+def export_analysis_pdf(document_id: str, current_user: dict = Depends(get_current_user)):
+    analysis = analyses_collection.find_one({
+        "documentId": document_id,
+        "userId": current_user["_id"]
+    })
+
+    if not analysis:
+        raise HTTPException(status_code=404, detail="Bu belge için analiz bulunamadı.")
+
+    doc = documents_collection.find_one({"_id": ObjectId(document_id)})
+    document_name = doc.get("originalName", "Belge") if doc else "Belge"
+
+    pdf_buffer = generate_analysis_pdf(document_name, analysis)
+
+    return StreamingResponse(
+        pdf_buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=analiz_raporu.pdf"}
+    )
