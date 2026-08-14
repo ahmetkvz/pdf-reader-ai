@@ -1,1 +1,25 @@
+# Ortam degiskenleri
+.env
+.env.*
+!.env.example
+**/.env
+
+# Python
+.venv/
 backend/.venv/
+__pycache__/
+*.pyc
+
+# Node
+node_modules/
+dist/
+build/
+
+# Editor / OS
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Capacitor / Android
+mobile/android/app/build/
+mobile/android/.gradle/
