@@ -10,9 +10,14 @@ from core.dependencies import get_current_user
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
+MIN_PASSWORD_LENGTH = 8
+
 
 @router.post("/register")
 def register(data: RegisterRequest):
+    if len(data.password) < MIN_PASSWORD_LENGTH:
+        raise HTTPException(status_code=400, detail=f"Şifre en az {MIN_PASSWORD_LENGTH} karakter olmalı.")
+
     existing_user = users_collection.find_one({"email": data.email.lower().strip()})
     if existing_user:
         raise HTTPException(status_code=400, detail="Bu email zaten kayıtlı.")
@@ -110,7 +115,10 @@ def forgot_password(data: ForgotPasswordRequest):
 
 @router.post("/reset-password")
 def reset_password(data: ResetPasswordRequest):
-    user = users_collection.find_one({"resetToken": data.token})
+    if len(data.new_password) < MIN_PASSWORD_LENGTH:
+        raise HTTPException(status_code=400, detail=f"Yeni şifre en az {MIN_PASSWORD_LENGTH} karakter olmalı.")
+
+    user =users_collection.find_one({"resetToken": data.token})
 
     if not user:
         raise HTTPException(status_code=400, detail="Geçersiz veya kullanılmış bağlantı.")
@@ -150,8 +158,8 @@ def change_password(
     if not verify_password(data.current_password, user["passwordHash"]):
         raise HTTPException(status_code=401, detail="Mevcut şifre yanlış.")
 
-    if len(data.new_password) < 6:
-        raise HTTPException(status_code=400, detail="Yeni şifre en az 6 karakter olmalı.")
+    if len(data.new_password) < MIN_PASSWORD_LENGTH:
+        raise HTTPException(status_code=400, detail=f"Yeni şifre en az {MIN_PASSWORD_LENGTH} karakter olmalı.")
 
     new_hashed = hash_password(data.new_password)
 
