@@ -20,3 +20,5 @@ DB_NAME = os.getenv("DB_NAME", "pdf_reader_ai")
 JWT_SECRET = _require_env("JWT_SECRET")
 JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
+
+MAX_PDF_PAGES = int(os.getenv("MAX_PDF_PAGES", "500"))

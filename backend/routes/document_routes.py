@@ -5,6 +5,7 @@ import time
 import base64
 
 from db.mongo import documents_collection
+from core.config import MAX_PDF_PAGES
 from core.dependencies import get_current_user
 from models.document_model import document_record
 from services.rag_service import index_document
@@ -60,10 +61,12 @@ async def upload_document(
     file_type = "unknown"
     text_content = ""
     file_data_b64 = ""
+    page_count = None
+    processed_pages = None
 
     if file.filename.lower().endswith(".pdf"):
         file_type = "pdf"
-        text_content = extract_text_from_pdf(save_path, max_pages=20)
+        text_content, processed_pages, page_count = extract_text_from_pdf(save_path, max_pages=MAX_PDF_PAGES)
         file_data_b64 = base64.b64encode(content).decode("utf-8")
     elif file.filename.lower().endswith(".txt"):
         file_type = "txt"
@@ -80,13 +83,23 @@ async def upload_document(
         file_type=file_type,
         document_type=document_type,
         text_content=text_content,
-        file_data=file_data_b64
+        file_data=file_data_b64,
+        page_count=page_count,
+        processed_pages=processed_pages
     )
 
     result = documents_collection.insert_one(doc)
 
     if text_content.strip():
         index_document(str(result.inserted_id), text_content)
+
+    truncated = page_count is not None and processed_pages < page_count
+    warning = None
+    if truncated:
+        warning = (
+            f"Belge {page_count} sayfa; sayfa sınırı nedeniyle yalnızca ilk "
+            f"{processed_pages} sayfa işlendi. Analiz ve sohbet sonraki sayfaları kapsamaz."
+        )
 
     return {
         "ok": True,
@@ -95,7 +108,11 @@ async def upload_document(
         "originalName": file.filename,
         "storedFilename": safe_name,
         "fileType": file_type,
-        "documentType": document_type
+        "documentType": document_type,
+        "pageCount": page_count,
+        "processedPages": processed_pages,
+        "truncated": truncated,
+        "warning": warning
     }
 
 

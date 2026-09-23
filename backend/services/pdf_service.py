@@ -2,6 +2,8 @@ from pathlib import Path
 from pypdf import PdfReader
 import re
 
+from core.config import MAX_PDF_PAGES
+
 
 def normalize_extracted_text(text: str) -> str:
     if not text:
@@ -27,9 +29,12 @@ def normalize_extracted_text(text: str) -> str:
     return text
 
 
-def extract_text_from_pdf(file_path: Path, max_pages: int = 20) -> str:
+def extract_text_from_pdf(file_path: Path, max_pages: int = MAX_PDF_PAGES) -> tuple:
+    """(metin, işlenen sayfa sayısı, toplam sayfa sayısı) döndürür."""
     reader = PdfReader(str(file_path))
+    total_pages = len(reader.pages)
     pages = reader.pages[:max_pages]
+    processed_pages = len(pages)
 
     parts = []
     for page in pages:
@@ -38,4 +43,4 @@ def extract_text_from_pdf(file_path: Path, max_pages: int = 20) -> str:
             parts.append(txt)
 
     raw_text = "\n".join(parts).strip()
-    return normalize_extracted_text(raw_text)
+    return normalize_extracted_text(raw_text), processed_pages, total_pages
