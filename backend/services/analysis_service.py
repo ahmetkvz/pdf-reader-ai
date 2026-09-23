@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
 
 
 def detect_sensitive(text: str) -> list:
@@ -60,7 +61,7 @@ def detect_document_type(text: str, filename: str = "") -> str:
 def _ask_groq(prompt: str) -> str:
     try:
         response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model=GROQ_MODEL,
             messages=[{"role": "user", "content": prompt}],
             max_tokens=1000,
         )
@@ -208,7 +209,7 @@ Belge:
 def _ask_groq_chat(prompt: str) -> str:
     try:
         response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model=GROQ_MODEL,
             messages=[{"role": "user", "content": prompt}],
             max_tokens=350,
         )

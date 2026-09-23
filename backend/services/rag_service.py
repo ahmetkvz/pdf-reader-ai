@@ -22,6 +22,10 @@ def _tokenize(text: str) -> list:
     return [w for w in text.split() if len(w) > 2]
 
 
+def is_indexed(document_id: str) -> bool:
+    return document_id in _STORE
+
+
 def index_document(document_id: str, text: str):
     chunks = chunk_text(text)
     if not chunks:

@@ -6,7 +6,7 @@ from datetime import datetime
 from db.mongo import documents_collection, analyses_collection
 from core.dependencies import get_current_user
 from services.analysis_service import _ask_groq_chat
-from services.rag_service import query_document
+from services.rag_service import index_document, is_indexed, query_document
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
 
@@ -32,8 +32,13 @@ def chat_with_document(
     if not doc:
         raise HTTPException(status_code=404, detail="Belge bulunamadı.")
 
-    relevant_chunks = query_document(document_id, body.question, top_k=6)
     full_text = doc.get("textContent", "").strip()
+
+    # İndeks RAM'de tutuluyor; sunucu yeniden başladıysa Mongo'daki metinden yeniden kur
+    if full_text and not is_indexed(document_id):
+        index_document(document_id, full_text)
+
+    relevant_chunks = query_document(document_id, body.question, top_k=6)
 
     if relevant_chunks:
         chunks_context = "\n\n---\n\n".join(relevant_chunks)
