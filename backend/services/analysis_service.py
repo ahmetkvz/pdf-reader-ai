@@ -4,6 +4,8 @@ import json
 from groq import Groq
 from dotenv import load_dotenv
 
+from core.config import CHAT_MAX_TOKENS
+
 load_dotenv()
 
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
@@ -211,8 +213,16 @@ def _ask_groq_chat(prompt: str) -> str:
         response = client.chat.completions.create(
             model=GROQ_MODEL,
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=350,
+            max_tokens=CHAT_MAX_TOKENS,
         )
-        return response.choices[0].message.content.strip()
+        choice = response.choices[0]
+        answer = (choice.message.content or "").strip()
+
+        # Token sınırına takıldıysa cevap yarım kalmıştır; kullanıcıya belirt
+        if choice.finish_reason == "length":
+            note = "(Cevap uzunluk sınırına takıldığı için kesildi. Soruyu daraltarak tekrar sorabilirsiniz.)"
+            answer = f"{answer}…\n\n{note}" if answer else note
+
+        return answer
     except Exception as e:
         return f"AI yanıt üretemedi: {str(e)}"
