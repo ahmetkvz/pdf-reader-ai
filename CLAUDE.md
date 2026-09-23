@@ -1,197 +1,126 @@
 # PDF Reader AI
 
-PDF belgelerini yükleyip içerikleri üzerinden doğal dilde soru sorabildiğiniz, yapay zeka destekli bir okuma asistanı. Belgeyi özetler, anahtar noktaları çıkarır, içindeki hassas verileri tespit eder ve belge bağlamında sohbet etmenizi sağlar.
+Bitirme projesi. Kullanıcı PDF yükler; uygulama metni çıkarır, Groq/LLaMA 3.3 70B
+ile analiz eder, belge üzerinden sohbet ettirir, not aldırır ve PDF rapor üretir.
 
-Web uygulaması olarak çalışır, Android paketi (APK) olarak da derlenebilir.
+## Dil
 
-**Canlı uygulama:** https://project-716py.vercel.app
-**API:** https://pdf-reader-backend-4rea.onrender.com
+Bu projede bana her zaman Türkçe cevap ver.
 
-> Backend ücretsiz barındırma katmanında çalıştığı için uzun süre kullanılmadığında uykuya geçer. İlk istek 30–50 saniye sürebilir, sonrasında normal hızına döner.
+## Yapı
 
----
+- `backend/` — FastAPI + MongoDB Atlas. Render'da yayında.
+- `frontend/` — React + Vite. Vercel'de yayında. Capacitor ile Android paketi var.
+- `mobile/` — Yarım kalmış Expo denemesi. Kullanılmıyor (madde 9'da kaldırılacak).
 
-## Ekran görüntüleri
+## Çalıştırma (Windows / PowerShell)
 
-<!-- Ekran görüntülerini docs/ klasörüne koyup buradaki yolları güncelleyin -->
-<!-- ![Ana ekran](docs/anaekran.png) -->
-<!-- ![Belge sohbeti](docs/sohbet.png) -->
-
----
-
-## Özellikler
-
-- **Belge yükleme ve metin çıkarma** — PDF dosyalarından sayfa bazlı metin çıkarımı
-- **Belge üzerinden sohbet** — sorulan soruya göre ilgili bölümler getirilir ve cevap yalnızca belge içeriğine dayandırılır
-- **Otomatik özet ve anahtar noktalar** — belgenin tamamı için özet çıkarımı
-- **Hassas veri tespiti** — belge içindeki kimlik numarası, telefon, e-posta gibi kişisel verilerin işaretlenmesi
-- **Not alma** — belge sayfaları üzerinde not tutma ve yönetme
-- **PDF görüntüleyici** — belgeyi uygulama içinde açma
-- **Dışa aktarma** — analiz sonuçlarının PDF olarak indirilmesi
-- **Kullanıcı hesapları** — JWT tabanlı kimlik doğrulama, şifre sıfırlama ve e-posta doğrulama
-- **Koyu / açık tema**
-- **Mobil sürüm** — Capacitor ile Android APK
-
----
-
-## Teknoloji yığını
-
-### Backend
-| Katman | Teknoloji |
-|---|---|
-| Çerçeve | FastAPI (Python) |
-| Veritabanı | MongoDB Atlas |
-| Dil modeli | Groq API üzerinden LLaMA 3.3 70B |
-| Kimlik doğrulama | JWT (HS256), bcrypt ile şifre özetleme |
-| PDF işleme | pypdf |
-| E-posta | Resend |
-| Dağıtım | Render |
-
-### Frontend
-| Katman | Teknoloji |
-|---|---|
-| Çerçeve | React + Vite |
-| Stil | Tailwind CSS |
-| Mobil | Capacitor (Android) |
-| Dağıtım | Vercel |
-
----
-
-## Mimari
+Sanal ortam `backend/.venv` içinde. Proje `Desktop`'tan `Desktop/PROJELER`
+altına taşındığı için venv'in kısayolları (`uvicorn.exe`, `pip.exe`) eski yolu
+arıyor ve çalışmıyor. Bu yüzden komutları `python -m` ile çağır:
 
 ```
-┌──────────────┐        ┌──────────────┐        ┌──────────────┐
-│   React SPA  │  HTTP  │   FastAPI    │        │ MongoDB Atlas│
-│   (Vercel)   ├───────►│   (Render)   ├───────►│              │
-└──────────────┘        └──────┬───────┘        └──────────────┘
-       │                       │
-       │                       │  metin parçaları + soru
-┌──────▼───────┐        ┌──────▼───────┐
-│ Android APK  │        │   Groq API   │
-│ (Capacitor)  │        │  LLaMA 3.3   │
-└──────────────┘        └──────────────┘
-```
-
-### İstek akışı
-
-1. Kullanıcı PDF yükler; `pdf_service` metni sayfa bazında çıkarır ve parçalara böler
-2. Belge ve parçalar MongoDB'ye kaydedilir
-3. Kullanıcı soru sorduğunda `rag_service` soruyla en alakalı parçaları seçer
-4. Seçilen parçalar ve soru birlikte dil modeline gönderilir
-5. Model cevabı yalnızca verilen bağlama dayanarak üretir
-
-### Getirme (retrieval) katmanı hakkında
-
-Projede başlangıçta ChromaDB ile vektör tabanlı arama kullanıldı. Ancak ücretsiz barındırma katmanındaki bellek sınırı, gömme modeli ile vektör deposunun aynı süreçte çalışmasına izin vermedi ve servis kararsız hale geldi.
-
-Uygulamanın kapsamı tek bir belge üzerinden soru cevaplama olduğu ve arama alanı dar kaldığı için, anahtar kelime ağırlıklı özel bir getirme katmanı yazıldı (`services/rag_service.py`). Cevap kalitesi kabul edilebilir düzeyde kaldı, servis kararlılığı sağlandı.
-
----
-
-## Klasör yapısı
-
-```
-pdf-reader-ai/
-├── backend/
-│   ├── core/           # yapılandırma, bağımlılıklar, güvenlik (JWT, hashing)
-│   ├── db/             # veritabanı bağlantısı
-│   ├── models/         # veri modelleri
-│   ├── schemas/        # istek/yanıt şemaları (Pydantic)
-│   ├── routes/         # auth, document, chat, analysis, notes uçları
-│   ├── services/       # iş mantığı: pdf, rag, analysis, email, export
-│   ├── main.py
-│   └── requirements.txt
-├── frontend/
-│   ├── src/            # React bileşenleri ve sayfalar
-│   ├── android/        # Capacitor Android projesi
-│   └── package.json
-└── mobile/
-```
-
-İş mantığı `services` katmanında toplanmıştır; `routes` katmanı yalnızca istekleri karşılar ve doğrulama yapar.
-
----
-
-## Kurulum
-
-### Gereksinimler
-- Python 3.10+
-- Node.js 18+
-- MongoDB Atlas hesabı
-- Groq API anahtarı
-- Resend API anahtarı (e-posta özellikleri için)
-
-### Backend
-
-```bash
 cd backend
-python -m venv .venv
-source .venv/Scripts/activate      # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-cp .env.example .env               # değerleri kendi anahtarlarınızla doldurun
-uvicorn main:app --reload
+.\.venv\Scripts\Activate.ps1
+python -m uvicorn main:app --reload
 ```
 
-API varsayılan olarak `http://localhost:8000` adresinde çalışır.
-Otomatik dokümantasyon: `http://localhost:8000/docs`
+Doğrudan `uvicorn main:app` yazma — "not recognized" hatası verir.
+Aynı şekilde `pip install` yerine `python -m pip install`.
 
-### Frontend
+API dokümanı: http://127.0.0.1:8000/docs
 
-```bash
-cd frontend
-npm install
-npm run dev
+Not: Proje kökünde de bir `.venv` var ama içi boş, onu kullanma.
+
+## Ortam değişkenleri
+
+`backend/.env` gerekli, git'e girmez. Kodun okuduğu isimler:
+
+```
+MONGO_URI, DB_NAME, JWT_SECRET, JWT_ALGORITHM,
+ACCESS_TOKEN_EXPIRE_MINUTES, GROQ_API_KEY, RESEND_API_KEY
 ```
 
-Uygulama `http://localhost:5173` adresinde açılır.
+Dikkat: `backend/.env.example` dosyasında yanlışlıkla `MONGODB_URI` yazıyor,
+kod ise `MONGO_URI` okuyor. Örneği birebir kopyalayan veritabanına bağlanamaz.
+(Madde 8'de düzeltilecek.)
 
-### Ortam değişkenleri
+## Yayın
 
-`backend/.env.example` dosyasına bakın. Gerekli değişkenler:
+- **Backend:** Render → `ahmetkvz/pdf-reader-ai`, branch `main`,
+  Root Directory `backend`,
+  Build Command `pip install -r requirements.txt`,
+  Start Command `uvicorn main:app --host 0.0.0.0 --port $PORT`.
+  Auto-Deploy açık.
+- **Frontend:** Vercel. `frontend/src/services/api.js` içindeki `baseURL`
+  backend adresini gösterir.
+- **Veritabanı:** MongoDB Atlas ücretsiz plan (`pdf-reader` cluster).
 
-| Değişken | Açıklama |
-|---|---|
-| `MONGODB_URI` | MongoDB Atlas bağlantı dizesi |
-| `JWT_SECRET` | Token imzalama anahtarı |
-| `JWT_ALGORITHM` | Varsayılan: `HS256` |
-| `ACCESS_TOKEN_EXPIRE_MINUTES` | Token geçerlilik süresi |
-| `GROQ_API_KEY` | Groq API anahtarı |
-| `RESEND_API_KEY` | Resend API anahtarı |
-| `MAIL_USERNAME` | Gönderici e-posta adresi |
-| `MAIL_PASSWORD` | Uygulama şifresi |
+### Ücretsiz plan tuzakları
 
----
+- Atlas uzun süre kullanılmayan cluster'ı durdurur. Durduğunda adresi DNS'ten
+  düşer ve `The DNS query name does not exist` hatası gelir. Çözüm: Atlas
+  panelinden **Resume**, ardından birkaç dakika bekle. Veriler kaybolmaz.
+- Render ücretsiz plan istek gelmeyince uyur; ilk istek 50 saniye sürebilir.
 
-## Android sürümü
+## Kurallar
 
-```bash
-cd frontend
-npm run build
-npx cap sync android
-npx cap open android
-```
+- `backend/.env` dosyasını okuma, yazma, içeriğini gösterme, commit etme.
+- Ben söylemeden `git commit` veya `git push` yapma.
+- `backend/__pycache__` altındaki `.pyc` dosyaları hâlâ git'te takipli.
+  Commit'e ekleme, `git add .` kullanma; dosyaları tek tek ekle.
+  (Madde 8'de git takibinden çıkarılacak.)
+- Commit mesajları Türkçe, küçük harf, Türkçe karakter kullanmadan, kısa.
+  Örnek: `korumasiz eski prototip endpointleri kaldirildi`
+- Bir maddeyi bitirdiğinde bu dosyadaki kutucuğu `[x]` yap.
 
-Android Studio üzerinden APK derlenir. Capacitor yapılandırması `frontend/capacitor.config.json` dosyasındadır.
+## Yapılacaklar
 
----
+- [x] **1. Korumasız eski prototip endpoint'ler.** `main.py` içindeki
+      `/upload`, `/files`, `/summary`, `/sensitive`, `/text-preview`,
+      `/db-check` kimlik doğrulaması istemiyordu; yüklenen tüm PDF'ler
+      herkese açıktı. Kaldırıldı. (commit `d093ca6`)
 
-## Bilinen eksikler ve geliştirme planı
+- [ ] **2. JWT_SECRET varsayılanı.** `core/config.py` değişken yoksa
+      `"supersecretkey123"` kullanıyor. Değişken eksikse uygulama hiç
+      açılmamalı. Ayrıca kayıt ve şifre sıfırlamada minimum şifre uzunluğu
+      kontrolü yok (şifre değiştirmede var).
 
-Bu bölüm projenin mevcut sınırlarını açıkça belirtmek için tutulmaktadır.
+- [ ] **3. RAG indeksi RAM'de.** `services/rag_service.py` içindeki `_STORE`
+      sözlüğü sunucu her yeniden başladığında siliniyor. Render uyuyup
+      uyandığında indeks kayboluyor ve sohbet belgenin sadece ilk 4000
+      karakterine bakıyor; sonraki sayfalarla ilgili sorulara "Bu bilgi
+      belgede yer almıyor" cevabı dönüyor.
 
-- **Vektör araması yok.** Getirme katmanı anahtar kelime ağırlıklı çalışıyor. Anlamsal arama, eşanlamlı ifadelerle sorulan sorularda daha iyi sonuç verirdi. PostgreSQL + pgvector ya da harici bir vektör servisi ile geri kazanılabilir.
-- **Getirme kalitesi ölçülmüyor.** Doğru parçanın getirilip getirilmediğini ölçen bir değerlendirme seti bulunmuyor. Bir sonraki adımda örnek soru–kaynak eşleşmelerinden oluşan bir set kurulması planlanıyor.
-- **Otomatik test kapsamı sınırlı.** Kritik akışlar (kimlik doğrulama, belge yükleme, getirme) için birim testleri yazılmadı.
-- **Soğuk başlangıç.** Ücretsiz barındırma katmanı nedeniyle uzun süre kullanılmayan servisin ilk isteği yavaş.
-- **Büyük belgelerde performans.** Çok sayfalı belgelerde metin çıkarımı istek içinde yapılıyor; arka plana taşınması gerekir.
-- **Yüklenen dosyalar diskte tutuluyor.** Ölçeklenebilir bir kurulumda nesne depolama (S3 benzeri) kullanılmalı.
+- [ ] **4. Sadece ilk 20 sayfa.** Yüklemede `max_pages=20`; uzun belgelerin
+      kalanı analize ve sohbete hiç girmiyor.
 
----
+- [ ] **5. Şifre sıfırlama maili.** `services/email_service.py` gönderici
+      olarak `onboarding@resend.dev` kullanıyor. Resend bu test adresiyle
+      yalnızca hesap sahibinin kendi adresine gönderiyor, diğer kullanıcılara
+      mail ulaşmıyor.
 
-## Lisans
+- [ ] **6. PDF base64 olarak Mongo'da.** Dosya, metinle aynı dokümanda
+      saklanıyor. MongoDB'nin 16 MB doküman sınırı yüzünden ~12 MB üstü
+      dosyalar 500 hatası veriyor. Boyut sınırı ve anlaşılır hata mesajı
+      gerekiyor. Ayrıca diske de yazılıyor ama Render'da kalıcı olmadığı için
+      gereksiz.
 
-Bu proje bitirme projesi kapsamında geliştirilmiştir.
+- [ ] **7. Öksüz notlar.** Belge silinince `notes` koleksiyonundaki notları
+      kalıyor (`routes/document_routes.py` sadece `analyses` siliyor).
 
-## İletişim
+- [ ] **8. Repo temizliği.** 16 adet `.pyc` ve `.vscode` dosyası hâlâ git'te
+      takipli, bu yüzden backend her çalıştığında `git status` kirleniyor.
+      Git takibinden çıkar. `.env.example`'daki `MONGODB_URI` → `MONGO_URI`
+      düzelt.
 
-Ahmet Hakan Kavaz — [github.com/ahmetkvz](https://github.com/ahmetkvz)
+- [ ] **9. Bağımlılık temizliği.** `requirements.txt`'te 94 paket var, kodun
+      doğrudan kullandığı ~15 tanesi; gerisi ChromaDB ve Gemini döneminden
+      kalma. Temizle ve sanal ortamı sıfırdan kur (taşınma sorunu da böylece
+      çözülür). `mobile/` klasörünü kaldır. `analysis_service.py` içindeki
+      `_with_gemini` fonksiyon adlarını düzelt (artık Groq kullanılıyor).
+
+- [ ] **10. README.** Kök dizinde README yok; mevcut iki README Vite ve
+      Expo'nun hazır şablonları. Kurulum adımları, ortam değişkenleri,
+      çalıştırma komutları, mimari özeti ve ücretsiz plan uyarıları yazılacak.
+      İşverenlerin ilk baktığı yer burası.
