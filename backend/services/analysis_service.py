@@ -19,22 +19,73 @@ class AIServiceError(Exception):
     """Yapay zeka servisi cevap üretemediğinde fırlatılır."""
 
 
+# Desenlerde yakalama grubu kullanma: re.findall grup varsa tüm eşleşme yerine
+# sadece grubu döndürür. Gerekirse yakalamayan grup (?:...) kullan.
+SENSITIVE_PATTERNS = {
+    # Sondaki nokta alan adına dahil edilmez ("a@b.com." → "a@b.com")
+    "email": r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}",
+    # Rakamla bitişik değilse; aksi halde TCKN gibi uzun sayıların içinden telefon çıkıyor
+    "phone": r"(?<!\d)(?:\+90|0)?[\s\-]?5\d{2}[\s\-]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}(?!\d)",
+    "tckn": r"\b[1-9][0-9]{10}\b",
+    "iban": r"\bTR\d{2}[\s]?\d{4}[\s]?\d{4}[\s]?\d{4}[\s]?\d{4}[\s]?\d{4}[\s]?\d{2}\b",
+}
+CARD_CANDIDATE_PATTERN = r"\b(?:\d[ -]*?){13,19}\b"
+
+
+def luhn_check(number: str) -> bool:
+    if not number.isdigit():
+        return False
+
+    total = 0
+    for i, d in enumerate(reversed(number)):
+        n = int(d)
+        if i % 2 == 1:
+            n *= 2
+            if n > 9:
+                n -= 9
+        total += n
+
+    return total % 10 == 0
+
+
+def _find_card_numbers(text: str, phones: list, ibans: list) -> list:
+    # IBAN rakamları kart adayı olarak taranmasın
+    for iban in ibans:
+        text = text.replace(iban, " ")
+
+    phone_digits = {re.sub(r"\D", "", p) for p in phones}
+    cards = []
+
+    for candidate in re.findall(CARD_CANDIDATE_PATTERN, text):
+        digits = re.sub(r"\D", "", candidate)
+
+        if not (13 <= len(digits) <= 19):
+            continue
+        # Telefon numarası kart sanılmasın
+        if digits in phone_digits or re.fullmatch(r"(?:90)?5\d{9}", digits):
+            continue
+        # Öğrenci/fatura numarası gibi rastgele sayılar Luhn kontrolünden geçmez
+        if not luhn_check(digits):
+            continue
+
+        cards.append(digits)
+
+    return cards
+
+
 def detect_sensitive(text: str) -> list:
+    matches = {key: re.findall(pattern, text) for key, pattern in SENSITIVE_PATTERNS.items()}
+    matches["card_number"] = _find_card_numbers(text, matches["phone"], matches["iban"])
+
     findings = []
-    patterns = {
-        "email": r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+",
-        "phone": r"(\+90|0)?[\s\-]?5\d{2}[\s\-]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}",
-        "tckn": r"\b[1-9][0-9]{10}\b",
-        "iban": r"\bTR\d{2}[\s]?\d{4}[\s]?\d{4}[\s]?\d{4}[\s]?\d{4}[\s]?\d{4}[\s]?\d{2}\b",
-        "card_number": r"\b(?:\d{4}[\s\-]?){3}\d{4}\b",
-    }
-    for key, pattern in patterns.items():
-        matches = re.findall(pattern, text)
-        if matches:
+    for key, found in matches.items():
+        found = [m.strip() for m in found]
+        if found:
             findings.append({
                 "type": key,
-                "count": len(matches),
-                "samples": list(set(matches))[:3]
+                "count": len(found),
+                # Görülme sırasını koruyarak tekrarları ele
+                "samples": list(dict.fromkeys(found))[:3]
             })
     return findings
 

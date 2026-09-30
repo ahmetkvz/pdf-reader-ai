@@ -178,11 +178,14 @@ kod ise `MONGO_URI` okuyor. Örneği birebir kopyalayan veritabanına bağlanama
       indiriyor. Adı "Analiz Raporunu İndir" olmalı; orijinali indirmek için
       ayrı buton.
 
-- [ ] **14. Arka arkaya sorularda cevaplar karışıyor.** Frontend cevapları
+- [x] **14. Arka arkaya sorularda cevaplar karışıyor.** Frontend cevapları
       karıştırıyor; bir sorunun cevabı hiç görünmüyor ve spinner sonsuza kadar
       dönüyor. Backend üçüne de 200 döndürüyor, sorun arayüzde. Her isteğe
       kimlik verilip cevabı kendi sorusuyla eşleştirilmeli, hata halinde
-      spinner kapanmalı.
+      spinner kapanmalı. Mesajlar artık kimliğe göre eşleşiyor, cevap
+      beklenirken soru kutusu "Cevap bekleniyor..." gösteriyor. Aynı commit'te
+      cevap tutarlılığı için `AI_TEMPERATURE` eklendi, varsayılan 0.2.
+      (commit `a9871ea`)
 
 - [x] **15. Sohbet cevapları kesiliyor.** `analysis_service.py` içinde sohbet
       cevapları `max_tokens=350` ile sınırlı. Cevaplar cümlenin hatta
