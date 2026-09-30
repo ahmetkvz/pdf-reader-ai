@@ -180,9 +180,12 @@ kod ise `MONGO_URI` okuyor. Örneği birebir kopyalayan veritabanına bağlanama
       kimlik verilip cevabı kendi sorusuyla eşleştirilmeli, hata halinde
       spinner kapanmalı.
 
-- [ ] **15. Sohbet cevapları kesiliyor.** `analysis_service.py` içinde sohbet
+- [x] **15. Sohbet cevapları kesiliyor.** `analysis_service.py` içinde sohbet
       cevapları `max_tokens=350` ile sınırlı. Cevaplar cümlenin hatta
-      kelimenin ortasında kesiliyor. 800-1000'e çıkar.
+      kelimenin ortasında kesiliyor. 800-1000'e çıkar. Sınır artık
+      `CHAT_MAX_TOKENS` ortam değişkeninden okunuyor (varsayılan 1000);
+      `finish_reason` `"length"` ise cevabın sonuna kesildiğini belirten
+      bir not ekleniyor. (commit `3214bfe`)
 
 - [ ] **16. PDF tekrar tekrar indiriliyor.** Aynı PDF dosyası Mongo'dan
       defalarca yeniden indiriliyor (loglarda `GET /documents/{id}/file`

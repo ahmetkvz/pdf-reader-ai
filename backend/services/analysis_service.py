@@ -1,6 +1,7 @@
 import os
 import re
 import json
+import logging
 from groq import Groq
 from dotenv import load_dotenv
 
@@ -8,8 +9,14 @@ from core.config import CHAT_MAX_TOKENS
 
 load_dotenv()
 
+logger = logging.getLogger(__name__)
+
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
+
+
+class AIServiceError(Exception):
+    """Yapay zeka servisi cevap üretemediğinde fırlatılır."""
 
 
 def detect_sensitive(text: str) -> list:
@@ -67,9 +74,16 @@ def _ask_groq(prompt: str) -> str:
             messages=[{"role": "user", "content": prompt}],
             max_tokens=1000,
         )
-        return response.choices[0].message.content.strip()
     except Exception as e:
-        return f"AI yanıt üretemedi: {str(e)}"
+        logger.exception("Groq analiz isteği başarısız")
+        raise AIServiceError(str(e)) from e
+
+    answer = (response.choices[0].message.content or "").strip()
+    if not answer:
+        logger.error("Groq analiz isteği boş cevap döndü (finish_reason=%s)",
+                     response.choices[0].finish_reason)
+        raise AIServiceError("Yapay zeka boş cevap döndü.")
+    return answer
 
 
 def _parse_list(text: str) -> list:
@@ -215,14 +229,20 @@ def _ask_groq_chat(prompt: str) -> str:
             messages=[{"role": "user", "content": prompt}],
             max_tokens=CHAT_MAX_TOKENS,
         )
-        choice = response.choices[0]
-        answer = (choice.message.content or "").strip()
-
-        # Token sınırına takıldıysa cevap yarım kalmıştır; kullanıcıya belirt
-        if choice.finish_reason == "length":
-            note = "(Cevap uzunluk sınırına takıldığı için kesildi. Soruyu daraltarak tekrar sorabilirsiniz.)"
-            answer = f"{answer}…\n\n{note}" if answer else note
-
-        return answer
     except Exception as e:
-        return f"AI yanıt üretemedi: {str(e)}"
+        logger.exception("Groq sohbet isteği başarısız")
+        raise AIServiceError(str(e)) from e
+
+    choice = response.choices[0]
+    answer = (choice.message.content or "").strip()
+
+    # Token sınırına takıldıysa cevap yarım kalmıştır; kullanıcıya belirt
+    if choice.finish_reason == "length":
+        note = "(Cevap uzunluk sınırına takıldığı için kesildi. Soruyu daraltarak tekrar sorabilirsiniz.)"
+        answer = f"{answer}…\n\n{note}" if answer else note
+
+    if not answer:
+        logger.error("Groq sohbet isteği boş cevap döndü (finish_reason=%s)", choice.finish_reason)
+        raise AIServiceError("Yapay zeka boş cevap döndü.")
+
+    return answer

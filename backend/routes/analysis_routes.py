@@ -14,10 +14,13 @@ from services.analysis_service import (
     analyze_lecture_with_gemini,
     analyze_general_with_gemini,
     detect_document_type,
+    AIServiceError,
 )
 from services.export_service import generate_analysis_pdf
 
 router = APIRouter(prefix="/analysis", tags=["Analysis"])
+
+AI_UNAVAILABLE_MESSAGE = "Yapay zeka servisine şu an ulaşılamıyor, lütfen tekrar deneyin."
 
 
 @router.post("/run/{document_id}")
@@ -40,17 +43,23 @@ def run_analysis(document_id: str, current_user: dict = Depends(get_current_user
 
     document_type = doc.get("documentType", "general")
 
-    summary = simple_summary(text)
-    important_points = extract_important_points(text)
-    sensitive_findings = detect_sensitive(text)
-    keywords = extract_keywords(text)
+    # Tüm yapay zeka çağrıları veritabanına yazmadan önce yapılır;
+    # biri başarısız olursa hiçbir sonuç kaydedilmez.
+    try:
+        summary = simple_summary(text)
+        important_points = extract_important_points(text)
+        keywords = extract_keywords(text)
 
-    if document_type == "cv":
-        document_specific_analysis = analyze_cv_with_gemini(text)
-    elif document_type == "lecture_note":
-        document_specific_analysis = analyze_lecture_with_gemini(text)
-    else:
-        document_specific_analysis = analyze_general_with_gemini(text)
+        if document_type == "cv":
+            document_specific_analysis = analyze_cv_with_gemini(text)
+        elif document_type == "lecture_note":
+            document_specific_analysis = analyze_lecture_with_gemini(text)
+        else:
+            document_specific_analysis = analyze_general_with_gemini(text)
+    except AIServiceError:
+        raise HTTPException(status_code=503, detail=AI_UNAVAILABLE_MESSAGE)
+
+    sensitive_findings = detect_sensitive(text)
 
     existing = analyses_collection.find_one({
         "documentId": document_id,

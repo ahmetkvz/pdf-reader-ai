@@ -5,7 +5,7 @@ from datetime import datetime
 
 from db.mongo import documents_collection, analyses_collection
 from core.dependencies import get_current_user
-from services.analysis_service import _ask_groq_chat
+from services.analysis_service import _ask_groq_chat, AIServiceError
 from services.rag_service import index_document, is_indexed, query_document
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
@@ -65,7 +65,14 @@ Soru: {body.question}
 
 Cevap:"""
 
-    answer = _ask_groq_chat(prompt)
+    try:
+        answer = _ask_groq_chat(prompt)
+    except AIServiceError:
+        # Başarısız cevap sohbet geçmişine yazılmaz
+        raise HTTPException(
+            status_code=503,
+            detail="Yapay zeka servisine şu an ulaşılamıyor, lütfen tekrar deneyin."
+        )
 
     message = {
         "question": body.question,
