@@ -25,6 +25,4 @@ mobile/android/app/build/
 mobile/android/.gradle/
 # Yuklenen dosyalar
 backend/uploads/
-backend/__pycache__/
 frontend/android/
-.vscode/

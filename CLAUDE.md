@@ -56,16 +56,14 @@ Not: Proje kökünde de bir `.venv` var ama içi boş, onu kullanma.
 
 ```
 MONGO_URI, DB_NAME, JWT_SECRET, JWT_ALGORITHM,
-ACCESS_TOKEN_EXPIRE_MINUTES, GROQ_API_KEY, RESEND_API_KEY,
-GROQ_MODEL, MAX_PDF_PAGES
+ACCESS_TOKEN_EXPIRE_MINUTES, GROQ_API_KEY, GROQ_MODEL, RESEND_API_KEY,
+MAX_PDF_PAGES, CHAT_MAX_TOKENS, AI_TEMPERATURE
 ```
 
-`MONGO_URI` ve `JWT_SECRET` zorunlu; eksikse uygulama açılmaz. Diğerlerinin
-varsayılanı var (`GROQ_MODEL` → `openai/gpt-oss-120b`, `MAX_PDF_PAGES` → 500).
-
-Dikkat: `backend/.env.example` dosyasında yanlışlıkla `MONGODB_URI` yazıyor,
-kod ise `MONGO_URI` okuyor. Örneği birebir kopyalayan veritabanına bağlanamaz.
-(Madde 8'de düzeltilecek.)
+`MONGO_URI` ve `JWT_SECRET` zorunlu; eksikse uygulama açılmaz. `GROQ_API_KEY`
+ve `RESEND_API_KEY`'in varsayılanı yok ama uygulama onlarsız da açılır (yapay
+zeka ve şifre sıfırlama maili çalışmaz). Diğerlerinin varsayılanı var.
+Her değişkenin açıklaması ve varsayılanı `backend/.env.example` içinde.
 
 ## Yayın
 
@@ -93,9 +91,9 @@ kod ise `MONGO_URI` okuyor. Örneği birebir kopyalayan veritabanına bağlanama
 - Git komutlarını her zaman proje kökünden çalıştır:
   `cd C:\Users\Victus\Desktop\PROJELER\pdf-reader-ai`
   Terminal genelde `backend` klasöründe kalıyor ve yollar tutmuyor.
-- `backend/__pycache__` altındaki `.pyc` dosyaları hâlâ git'te takipli.
-  Commit'e ekleme, `git add .` kullanma; dosyaları tek tek ekle.
-  (Madde 8'de git takibinden çıkarılacak.)
+- `.pyc`, `__pycache__` ve `.vscode` artık git'te takipli değil ve
+  `.gitignore` kapsamında (madde 8). Commit'ten önce `git status` ile
+  eklenecek dosyaları kontrol et.
 - Commit mesajları Türkçe, küçük harf, Türkçe karakter kullanmadan, kısa.
   Örnek: `korumasiz eski prototip endpointleri kaldirildi`
 - Bir maddeyi bitirdiğinde bu dosyadaki kutucuğu `[x]` yap.
@@ -204,13 +202,16 @@ kod ise `MONGO_URI` okuyor. Örneği birebir kopyalayan veritabanına bağlanama
       ulaşıyor ama analiz ulaşmıyor. Uzun belgelerde parça parça özetleyip
       birleştirmek gerekiyor.
 
-- [ ] **18. Hassas veri tespiti.** `analysis_service.py` `detect_sensitive`
+- [x] **18. Hassas veri tespiti.** `analysis_service.py` `detect_sensitive`
       içindeki telefon deseninde yakalama grubu var: `(\+90|0)`.
       `re.findall` yakalama grubu varsa sadece grubu döndürdüğü için arayüzde
       telefon numarası olarak "0" görünüyor. `(?:\+90|0)` yapılmalı. Ayrıca
       silinen eski `main.py`'deki hassas veri tespitinde Luhn algoritması
       kontrolü ve telefon eleme mantığı vardı, bu sürümde yok. O kod
-      `3130e7d` commit'inde duruyor, oradan geri alınabilir.
+      `3130e7d` commit'inde duruyor, oradan geri alınabilir. Yakalama grubu
+      düzeltildi, `luhn_check` geri getirildi, IBAN rakamları kart adayı
+      olarak taranmıyor, telefon numaraları kart sanılmıyor.
+      (commit `5f627a1`)
 
 ## Ürün yol haritası
 
