@@ -166,9 +166,13 @@ kod ise `MONGO_URI` okuyor. Örneği birebir kopyalayan veritabanına bağlanama
       değişkeninden okunuyor. Frontend API adresi `api.js` içinde sabitti;
       artık `VITE_API_URL` değişkeninden okunuyor. (commit `e50e861`)
 
-- [ ] **12. Başarısız analiz kaydediliyor.** Analiz başarısız olduğunda hata
+- [x] **12. Başarısız analiz kaydediliyor.** Analiz başarısız olduğunda hata
       metni sonuç olarak veritabanına kaydediliyor ve kullanıcıya özet diye
-      gösteriliyor. Başarısız analiz kaydedilmemeli.
+      gösteriliyor. Başarısız analiz kaydedilmemeli. `_ask_groq` ve
+      `_ask_groq_chat` artık hata metni döndürmek yerine `AIServiceError`
+      fırlatıyor; analiz ve sohbet route'ları bunu yakalayıp veritabanına
+      hiçbir şey yazmadan 503 dönüyor. Analiz ya hep ya hiç kaydediliyor,
+      hatalar loglanıyor. (commit `b5842d5`)
 
 - [ ] **13. "PDF İndir" butonu.** Yüklenen belgeyi değil analiz raporunu
       indiriyor. Adı "Analiz Raporunu İndir" olmalı; orijinali indirmek için

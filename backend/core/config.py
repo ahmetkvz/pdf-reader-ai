@@ -23,3 +23,4 @@ ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60")
 
 MAX_PDF_PAGES = int(os.getenv("MAX_PDF_PAGES", "500"))
 CHAT_MAX_TOKENS = int(os.getenv("CHAT_MAX_TOKENS", "1000"))
+AI_TEMPERATURE = float(os.getenv("AI_TEMPERATURE", "0.2"))

@@ -5,7 +5,7 @@ import logging
 from groq import Groq
 from dotenv import load_dotenv
 
-from core.config import CHAT_MAX_TOKENS
+from core.config import CHAT_MAX_TOKENS, AI_TEMPERATURE
 
 load_dotenv()
 
@@ -73,6 +73,7 @@ def _ask_groq(prompt: str) -> str:
             model=GROQ_MODEL,
             messages=[{"role": "user", "content": prompt}],
             max_tokens=1000,
+            temperature=AI_TEMPERATURE,
         )
     except Exception as e:
         logger.exception("Groq analiz isteği başarısız")
@@ -228,6 +229,7 @@ def _ask_groq_chat(prompt: str) -> str:
             model=GROQ_MODEL,
             messages=[{"role": "user", "content": prompt}],
             max_tokens=CHAT_MAX_TOKENS,
+            temperature=AI_TEMPERATURE,
         )
     except Exception as e:
         logger.exception("Groq sohbet isteği başarısız")

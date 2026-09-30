@@ -79,6 +79,22 @@ function LectureAnalysis({ data }) {
   );
 }
 
+// Sohbet mesajlarını konum yerine kimlikle eşleştirmek için.
+// crypto.randomUUID güvenli olmayan bağlamda (http üzerinden LAN) yok, sayaç her yerde çalışır.
+let chatIdCounter = 0;
+const newChatId = () => `chat-${++chatIdCounter}`;
+
+const chatErrorMessage = (err) => {
+  const status = err?.response?.status;
+  if (status === 503) {
+    return err.response.data?.detail || "Yapay zeka servisine şu an ulaşılamıyor, lütfen tekrar deneyin.";
+  }
+  if (!err?.response) {
+    return "Sunucuya ulaşılamadı. Bağlantınızı kontrol edip tekrar deneyin.";
+  }
+  return err.response.data?.detail || "Bir hata oluştu.";
+};
+
 export default function DocumentPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -101,21 +117,40 @@ export default function DocumentPage() {
   const chatEndRef = useRef(null);
 
   useEffect(() => {
+    // Belge değiştiyse önceki belgenin sohbeti ve geç gelen cevapları bu sayfaya karışmasın
+    let cancelled = false;
+    setChatHistory([]);
+
     Promise.all([
       documentService.getMyDocuments(),
       analysisService.get(id).catch(() => null),
       api.get(`/chat/${id}`).catch(() => null),
     ]).then(([docsRes, analysisRes, chatRes]) => {
+      if (cancelled) return;
       const found = docsRes.data.documents.find((d) => d._id === id);
       setDoc(found || null);
       if (analysisRes) setAnalysis(analysisRes.data.analysis);
-      if (chatRes) setChatHistory(chatRes.data.chatHistory || []);
-    }).finally(() => setLoading(false));
+      if (chatRes) {
+        const serverHistory = (chatRes.data.chatHistory || []).map((m) => ({ ...m, id: newChatId() }));
+        // Sunucu listesiyle birleştir: bu oturumda gönderilip sunucu listesinde henüz
+        // olmayan mesajlar (cevap bekleyenler, hata alanlar) silinmesin
+        setChatHistory((prev) => {
+          const inServer = (m) => serverHistory.some((s) => s.question === m.question && s.timestamp === m.timestamp);
+          return [...serverHistory, ...prev.filter((m) => m.local && !inServer(m))];
+        });
+      }
+    }).finally(() => {
+      if (!cancelled) setLoading(false);
+    });
 
     notesService.getByDocument(id)
       .then((res) => setNotes(res.data.notes || []))
       .catch(() => {})
       .finally(() => setNotesLoading(false));
+
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
 
   const addNote = async () => {
@@ -202,13 +237,19 @@ export default function DocumentPage() {
     const q = question.trim();
     setQuestion("");
     setChatLoading(true);
-    const tempMsg = { question: q, answer: null, timestamp: new Date().toISOString() };
+    const msgId = newChatId();
+    const tempMsg = { id: msgId, local: true, pending: true, question: q, answer: null, timestamp: new Date().toISOString() };
     setChatHistory(prev => [...prev, tempMsg]);
     try {
       const res = await api.post(`/chat/${id}`, { question: q });
-      setChatHistory(prev => prev.map((m, i) => i === prev.length - 1 ? res.data : m));
-    } catch {
-      setChatHistory(prev => prev.map((m, i) => i === prev.length - 1 ? { ...m, answer: "Bir hata oluştu." } : m));
+      const { question: answeredQuestion, answer, timestamp } = res.data;
+      setChatHistory(prev => prev.map(m => m.id === msgId
+        ? { ...m, question: answeredQuestion, answer, timestamp, pending: false }
+        : m));
+    } catch (err) {
+      setChatHistory(prev => prev.map(m => m.id === msgId
+        ? { ...m, answer: chatErrorMessage(err), error: true, pending: false }
+        : m));
     } finally {
       setChatLoading(false);
     }
@@ -341,8 +382,8 @@ export default function DocumentPage() {
                 </button>
                 {chatExpanded && (
                   <div className="space-y-3 max-h-60 overflow-y-auto mt-3">
-                    {chatHistory.map((m, i) => (
-                      <div key={i} className="space-y-1">
+                    {chatHistory.map((m) => (
+                      <div key={m.id} className="space-y-1">
                         <div className="flex justify-end"><span className="bg-indigo-600 text-white text-sm px-3 py-2 rounded-2xl rounded-tr-sm max-w-xs">{m.question}</span></div>
                         {m.answer && <div className="flex justify-start"><span className="bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-sm px-3 py-2 rounded-2xl rounded-tl-sm max-w-xs">{m.answer}</span></div>}
                       </div>
@@ -382,13 +423,13 @@ export default function DocumentPage() {
               {chatHistory.length === 0 && (
                 <p className="text-xs text-slate-400 dark:text-slate-500 text-center mt-8">Belge hakkında bir şeyler sor!</p>
               )}
-              {chatHistory.map((m, i) => (
-                <div key={i} className="space-y-1">
+              {chatHistory.map((m) => (
+                <div key={m.id} className="space-y-1">
                   <div className="flex justify-end"><span className="bg-indigo-600 text-white text-sm px-3 py-2 rounded-2xl rounded-tr-sm max-w-xs leading-relaxed">{m.question}</span></div>
-                  {m.answer ? (
-                    <div className="flex justify-start"><span className="bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-sm px-3 py-2 rounded-2xl rounded-tl-sm max-w-xs leading-relaxed">{m.answer}</span></div>
-                  ) : (
+                  {m.pending ? (
                     <div className="flex justify-start"><span className="bg-slate-100 dark:bg-slate-700 text-slate-400 text-sm px-3 py-2 rounded-2xl rounded-tl-sm"><Loader2 size={14} className="animate-spin" /></span></div>
+                  ) : m.answer && (
+                    <div className="flex justify-start"><span className={`text-sm px-3 py-2 rounded-2xl rounded-tl-sm max-w-xs leading-relaxed ${m.error ? "bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-300" : "bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200"}`}>{m.answer}</span></div>
                   )}
                 </div>
               ))}
@@ -401,8 +442,11 @@ export default function DocumentPage() {
                   value={question}
                   onChange={(e) => setQuestion(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && sendQuestion()}
-                  placeholder="Bir soru sor..."
-                  className="flex-1 bg-white dark:bg-slate-900/50 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-white rounded-xl px-3 py-2 text-sm placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  // disabled yerine readOnly: odak ve mobil klavye kaybolmasın, cevap gelince yazmaya devam edilebilsin
+                  readOnly={chatLoading}
+                  aria-disabled={chatLoading}
+                  placeholder={chatLoading ? "Cevap bekleniyor..." : "Bir soru sor..."}
+                  className={`flex-1 bg-white dark:bg-slate-900/50 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-white rounded-xl px-3 py-2 text-sm placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-opacity ${chatLoading ? "opacity-50 cursor-not-allowed" : ""}`}
                 />
                 <button
                   onClick={sendQuestion}
