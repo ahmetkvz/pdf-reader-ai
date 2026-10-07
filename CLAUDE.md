@@ -48,7 +48,12 @@ backend adresine düşer, yani Vercel'de ayar gerekmez.
 
 Canlı frontend: https://project-716py.vercel.app
 
-Not: Proje kökünde de bir `.venv` var ama içi boş, onu kullanma.
+npm komutları PowerShell'de "cannot be loaded because running scripts is
+disabled" hatası verirse iki çözüm var: bir kez
+`Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned`
+çalıştır ya da `npm` yerine `npm.cmd` yaz.
+
+Not: Tek sanal ortam `backend/.venv`. Proje kökündeki boş `.venv` silindi.
 
 ## Ortam değişkenleri
 
@@ -57,12 +62,16 @@ Not: Proje kökünde de bir `.venv` var ama içi boş, onu kullanma.
 ```
 MONGO_URI, DB_NAME, JWT_SECRET, JWT_ALGORITHM,
 ACCESS_TOKEN_EXPIRE_MINUTES, GROQ_API_KEY, GROQ_MODEL, RESEND_API_KEY,
-MAX_PDF_PAGES, CHAT_MAX_TOKENS, AI_TEMPERATURE
+MAX_PDF_PAGES, CHAT_MAX_TOKENS, AI_TEMPERATURE, MAX_UPLOAD_MB,
+STORAGE_ENDPOINT_URL, STORAGE_ACCESS_KEY_ID, STORAGE_SECRET_ACCESS_KEY,
+STORAGE_BUCKET
 ```
 
 `MONGO_URI` ve `JWT_SECRET` zorunlu; eksikse uygulama açılmaz. `GROQ_API_KEY`
 ve `RESEND_API_KEY`'in varsayılanı yok ama uygulama onlarsız da açılır (yapay
-zeka ve şifre sıfırlama maili çalışmaz). Diğerlerinin varsayılanı var.
+zeka ve şifre sıfırlama maili çalışmaz). Dört `STORAGE_*` değişkeni de PDF
+yüklemek için gerekli; biri eksikse uygulama açılır ama PDF yükleme 503 döner.
+`MAX_UPLOAD_MB`'nin varsayılanı 20. Diğerlerinin de varsayılanı var.
 Her değişkenin açıklaması ve varsayılanı `backend/.env.example` içinde.
 
 ## Yayın
@@ -76,6 +85,10 @@ Her değişkenin açıklaması ve varsayılanı `backend/.env.example` içinde.
   backend adresini `VITE_API_URL`'den okur; tanımlı değilse canlı backend
   adresini kullanır.
 - **Veritabanı:** MongoDB Atlas ücretsiz plan (`pdf-reader` cluster).
+- **Dosya depolama:** Cloudflare R2, bucket `pdf-reader-ai`, Public Access
+  kapalı. Ücretsiz plan 10 GB depolama + sınırsız indirme. Dört `STORAGE_*`
+  değişkeni hem `backend/.env` dosyasında hem Render'ın **Environment**
+  sekmesinde tanımlı olmalı; Render'da eksikse canlıda PDF yüklenemez.
 
 ### Ücretsiz plan tuzakları
 
@@ -91,9 +104,6 @@ Her değişkenin açıklaması ve varsayılanı `backend/.env.example` içinde.
 - Git komutlarını her zaman proje kökünden çalıştır:
   `cd C:\Users\Victus\Desktop\PROJELER\pdf-reader-ai`
   Terminal genelde `backend` klasöründe kalıyor ve yollar tutmuyor.
-- `.pyc`, `__pycache__` ve `.vscode` artık git'te takipli değil ve
-  `.gitignore` kapsamında (madde 8). Commit'ten önce `git status` ile
-  eklenecek dosyaları kontrol et.
 - Commit mesajları Türkçe, küçük harf, Türkçe karakter kullanmadan, kısa.
   Örnek: `korumasiz eski prototip endpointleri kaldirildi`
 - Bir maddeyi bitirdiğinde bu dosyadaki kutucuğu `[x]` yap.
@@ -134,19 +144,24 @@ Her değişkenin açıklaması ve varsayılanı `backend/.env.example` içinde.
       yalnızca hesap sahibinin kendi adresine gönderiyor, diğer kullanıcılara
       mail ulaşmıyor.
 
-- [ ] **6. PDF base64 olarak Mongo'da.** Dosya, metinle aynı dokümanda
+- [x] **6. PDF base64 olarak Mongo'da.** Dosya, metinle aynı dokümanda
       saklanıyor. MongoDB'nin 16 MB doküman sınırı yüzünden ~12 MB üstü
       dosyalar 500 hatası veriyor. Boyut sınırı ve anlaşılır hata mesajı
       gerekiyor. Ayrıca diske de yazılıyor ama Render'da kalıcı olmadığı için
-      gereksiz.
+      gereksiz. Dosyalar artık Cloudflare R2'de (S3 uyumlu,
+      `services/storage_service.py`); Mongo'da sadece `storageKey` tutuluyor.
+      Diske yazma kaldırıldı, `MAX_UPLOAD_MB` ile boyut sınırı eklendi (aşılırsa
+      413). Eski belgeler `fileData` alanından okunmaya devam ediyor.
+      (commit `7d0bd4e`)
 
-- [ ] **7. Öksüz notlar.** Belge silinince `notes` koleksiyonundaki notları
-      kalıyor (`routes/document_routes.py` sadece `analyses` siliyor).
+- [x] **7. Öksüz notlar.** Belge silinince `notes` koleksiyonundaki notları
+      kalıyor (`routes/document_routes.py` sadece `analyses` siliyor). Belge
+      silinince notları da siliniyor. (commit `7d0bd4e`)
 
-- [ ] **8. Repo temizliği.** 16 adet `.pyc` ve `.vscode` dosyası hâlâ git'te
+- [x] **8. Repo temizliği.** 16 adet `.pyc` ve `.vscode` dosyası hâlâ git'te
       takipli, bu yüzden backend her çalıştığında `git status` kirleniyor.
       Git takibinden çıkar. `.env.example`'daki `MONGODB_URI` → `MONGO_URI`
-      düzelt.
+      düzelt. (commit `41644ee`)
 
 - [ ] **9. Bağımlılık temizliği.** `requirements.txt`'te 94 paket var, kodun
       doğrudan kullandığı ~15 tanesi; gerisi ChromaDB ve Gemini döneminden
