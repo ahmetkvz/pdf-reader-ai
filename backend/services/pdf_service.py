@@ -1,5 +1,7 @@
 from pathlib import Path
+from typing import Union
 from pypdf import PdfReader
+import io
 import re
 
 from core.config import MAX_PDF_PAGES
@@ -29,9 +31,15 @@ def normalize_extracted_text(text: str) -> str:
     return text
 
 
-def extract_text_from_pdf(file_path: Path, max_pages: int = MAX_PDF_PAGES) -> tuple:
-    """(metin, işlenen sayfa sayısı, toplam sayfa sayısı) döndürür."""
-    reader = PdfReader(str(file_path))
+def extract_text_from_pdf(source: Union[bytes, Path, str], max_pages: int = MAX_PDF_PAGES) -> tuple:
+    """(metin, işlenen sayfa sayısı, toplam sayfa sayısı) döndürür.
+
+    source: PDF'in içeriği (bytes) ya da dosya yolu.
+    """
+    if isinstance(source, (bytes, bytearray)):
+        reader = PdfReader(io.BytesIO(source))
+    else:
+        reader = PdfReader(str(source))
     total_pages = len(reader.pages)
     pages = reader.pages[:max_pages]
     processed_pages = len(pages)

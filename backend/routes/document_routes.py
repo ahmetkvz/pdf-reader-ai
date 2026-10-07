@@ -1,25 +1,23 @@
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
 from fastapi.responses import Response
-from pathlib import Path
-import time
+from bson import ObjectId
 import base64
+import logging
+import uuid
 
-from db.mongo import documents_collection
-from core.config import MAX_PDF_PAGES
+from db.mongo import documents_collection, analyses_collection, notes_collection
+from core.config import MAX_PDF_PAGES, MAX_UPLOAD_MB
 from core.dependencies import get_current_user
 from models.document_model import document_record
 from services.rag_service import index_document
 from services.pdf_service import extract_text_from_pdf
 from services.analysis_service import detect_document_type
+from services import storage_service
+from services.storage_service import StorageError
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
-
-UPLOAD_DIR = Path(__file__).resolve().parent.parent / "uploads"
-UPLOAD_DIR.mkdir(exist_ok=True)
-
-
-def _safe_filename(name: str) -> str:
-    return name.replace(" ", "_").replace("/", "_").replace("\\", "_")
 
 
 @router.get("/me")
@@ -51,44 +49,70 @@ async def upload_document(
             detail=f"Desteklenmeyen dosya türü: {file.content_type}"
         )
 
-    ts = int(time.time())
-    safe_name = _safe_filename(f"{ts}_{file.filename}")
-    save_path = UPLOAD_DIR / safe_name
+    # Dosyanın tamamını belleğe almadan sınırı aşıp aşmadığını anlamak için bir bayt fazla oku
+    max_bytes = MAX_UPLOAD_MB * 1024 * 1024
+    content = await file.read(max_bytes + 1)
+    if len(content) > max_bytes:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Dosya çok büyük. En fazla {MAX_UPLOAD_MB} MB yükleyebilirsiniz."
+        )
 
-    content = await file.read()
-    save_path.write_bytes(content)
+    filename = file.filename or ""
+    is_pdf = filename.lower().endswith(".pdf")
+
+    if is_pdf and not storage_service.is_configured():
+        raise HTTPException(
+            status_code=503,
+            detail="Dosya depolama servisi yapılandırılmamış; PDF şu an yüklenemiyor. Lütfen daha sonra tekrar deneyin."
+        )
 
     file_type = "unknown"
     text_content = ""
-    file_data_b64 = ""
+    storage_key = None
     page_count = None
     processed_pages = None
 
-    if file.filename.lower().endswith(".pdf"):
+    if is_pdf:
         file_type = "pdf"
-        text_content, processed_pages, page_count = extract_text_from_pdf(save_path, max_pages=MAX_PDF_PAGES)
-        file_data_b64 = base64.b64encode(content).decode("utf-8")
-    elif file.filename.lower().endswith(".txt"):
+        try:
+            text_content, processed_pages, page_count = extract_text_from_pdf(content, max_pages=MAX_PDF_PAGES)
+        except Exception:
+            logger.exception("PDF okunamadı: %s", filename)
+            raise HTTPException(status_code=400, detail="PDF dosyası okunamadı. Dosya bozuk veya şifreli olabilir.")
+
+        storage_key = f"documents/{current_user['_id']}/{uuid.uuid4()}.pdf"
+        try:
+            storage_service.upload_file(storage_key, content, "application/pdf")
+        except StorageError:
+            raise HTTPException(status_code=503, detail="Dosya şu an kaydedilemedi, lütfen tekrar deneyin.")
+    elif filename.lower().endswith(".txt"):
         file_type = "txt"
         text_content = content.decode("utf-8", errors="ignore")
-    else:
-        file_type = "unknown"
 
-    document_type = detect_document_type(text_content, file.filename)
+    document_type = detect_document_type(text_content, filename)
 
     doc = document_record(
         user_id=current_user["_id"],
-        original_name=file.filename,
-        stored_filename=safe_name,
+        original_name=filename,
         file_type=file_type,
         document_type=document_type,
         text_content=text_content,
-        file_data=file_data_b64,
+        storage_key=storage_key,
         page_count=page_count,
         processed_pages=processed_pages
     )
 
-    result = documents_collection.insert_one(doc)
+    try:
+        result = documents_collection.insert_one(doc)
+    except Exception:
+        # Kayıt oluşmadıysa depolamadaki dosya sahipsiz kalmasın
+        if storage_key:
+            try:
+                storage_service.delete_file(storage_key)
+            except StorageError:
+                pass
+        raise
 
     if text_content.strip():
         index_document(str(result.inserted_id), text_content)
@@ -105,8 +129,7 @@ async def upload_document(
         "ok": True,
         "message": "Belge başarıyla yüklendi ve kaydedildi.",
         "documentId": str(result.inserted_id),
-        "originalName": file.filename,
-        "storedFilename": safe_name,
+        "originalName": filename,
         "fileType": file_type,
         "documentType": document_type,
         "pageCount": page_count,
@@ -118,8 +141,6 @@ async def upload_document(
 
 @router.get("/{document_id}/file")
 def get_document_file(document_id: str, current_user: dict = Depends(get_current_user)):
-    from bson import ObjectId
-
     try:
         doc = documents_collection.find_one({
             "_id": ObjectId(document_id),
@@ -131,13 +152,20 @@ def get_document_file(document_id: str, current_user: dict = Depends(get_current
     if not doc:
         raise HTTPException(status_code=404, detail="Belge bulunamadı.")
 
+    storage_key = doc.get("storageKey")
+    if storage_key:
+        try:
+            file_bytes = storage_service.download_file(storage_key)
+        except StorageError:
+            raise HTTPException(status_code=503, detail="Dosyaya şu an ulaşılamıyor, lütfen tekrar deneyin.")
+        return Response(content=file_bytes, media_type="application/pdf")
+
+    # Geriye dönük uyumluluk: eski belgelerde dosya base64 olarak Mongo'da duruyor
     file_data_b64 = doc.get("fileData", "")
-    if not file_data_b64:
-        raise HTTPException(status_code=404, detail="Bu belge için dosya verisi bulunamadı.")
+    if file_data_b64:
+        return Response(content=base64.b64decode(file_data_b64), media_type="application/pdf")
 
-    file_bytes = base64.b64decode(file_data_b64)
-
-    return Response(content=file_bytes, media_type="application/pdf")
+    raise HTTPException(status_code=404, detail="Bu belge için dosya verisi bulunamadı.")
 
 
 @router.delete("/{document_id}")
@@ -145,10 +173,6 @@ async def delete_document(
     document_id: str,
     current_user: dict = Depends(get_current_user)
 ):
-    from bson import ObjectId
-    from db.mongo import analyses_collection
-    from pathlib import Path
-
     try:
         doc = documents_collection.find_one({
             "_id": ObjectId(document_id),
@@ -160,13 +184,16 @@ async def delete_document(
     if not doc:
         raise HTTPException(status_code=404, detail="Belge bulunamadı.")
 
-    stored = doc.get("storedFilename")
-    if stored:
-        file_path = UPLOAD_DIR / stored
-        if file_path.exists():
-            file_path.unlink()
+    # Depolama hatası belge silmeyi engellemesin; storage_service hatayı zaten logluyor
+    storage_key = doc.get("storageKey")
+    if storage_key:
+        try:
+            storage_service.delete_file(storage_key)
+        except StorageError:
+            logger.warning("Belge silindi ama depolamadaki dosya silinemedi: %s", storage_key)
 
     documents_collection.delete_one({"_id": ObjectId(document_id)})
     analyses_collection.delete_many({"documentId": document_id})
+    notes_collection.delete_many({"documentId": document_id, "userId": current_user["_id"]})
 
     return {"ok": True, "message": "Belge silindi."}

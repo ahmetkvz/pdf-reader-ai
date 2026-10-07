@@ -4,11 +4,10 @@ from typing import Optional
 from datetime import datetime
 from bson import ObjectId
 
-from db.mongo import db
+from db.mongo import notes_collection
 from core.dependencies import get_current_user
 
 router = APIRouter(prefix="/notes", tags=["Notes"])
-notes_collection = db["notes"]
 
 
 class NoteRequest(BaseModel):
