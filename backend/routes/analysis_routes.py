@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from bson import ObjectId
+import logging
 
 from db.mongo import documents_collection, analyses_collection
 from core.dependencies import get_current_user
@@ -15,8 +16,11 @@ from services.analysis_service import (
     analyze_general_with_gemini,
     detect_document_type,
     AIServiceError,
+    ai_call_scope,
 )
 from services.export_service import generate_analysis_pdf
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/analysis", tags=["Analysis"])
 
@@ -44,20 +48,29 @@ def run_analysis(document_id: str, current_user: dict = Depends(get_current_user
     document_type = doc.get("documentType", "general")
 
     # Tüm yapay zeka çağrıları veritabanına yazmadan önce yapılır;
-    # biri başarısız olursa hiçbir sonuç kaydedilmez.
-    try:
-        summary = simple_summary(text)
-        important_points = extract_important_points(text)
-        keywords = extract_keywords(text)
+    # biri (uzun belgede herhangi bir parça dahil) başarısız olursa hiçbir sonuç kaydedilmez.
+    success = False
+    with ai_call_scope() as scope:
+        try:
+            summary = simple_summary(text)
+            important_points = extract_important_points(text)
+            keywords = extract_keywords(text)
 
-        if document_type == "cv":
-            document_specific_analysis = analyze_cv_with_gemini(text)
-        elif document_type == "lecture_note":
-            document_specific_analysis = analyze_lecture_with_gemini(text)
-        else:
-            document_specific_analysis = analyze_general_with_gemini(text)
-    except AIServiceError:
-        raise HTTPException(status_code=503, detail=AI_UNAVAILABLE_MESSAGE)
+            if document_type == "cv":
+                document_specific_analysis = analyze_cv_with_gemini(text)
+            elif document_type == "lecture_note":
+                document_specific_analysis = analyze_lecture_with_gemini(text)
+            else:
+                document_specific_analysis = analyze_general_with_gemini(text)
+            success = True
+        except AIServiceError:
+            raise HTTPException(status_code=503, detail=AI_UNAVAILABLE_MESSAGE)
+        finally:
+            # Maliyet takibi için: kaç yapay zeka çağrısı yapıldı
+            logger.info(
+                "Analiz %s: belge=%s, %d karakter, %d yapay zeka çağrısı",
+                "tamamlandı" if success else "başarısız", document_id, len(text), scope["calls"]
+            )
 
     sensitive_findings = detect_sensitive(text)
 

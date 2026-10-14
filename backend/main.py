@@ -1,3 +1,11 @@
+import logging
+
+# Uygulama loglarının (INFO ve üstü) Render loglarında görünmesi için.
+# Yapılandırma olmadan Python sadece WARNING ve üstünü yazar.
+logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+# Groq istemcisi her istek için INFO satırı yazıyor; gürültüyü azalt
+logging.getLogger("httpx").setLevel(logging.WARNING)
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routes.auth_routes import router as auth_router

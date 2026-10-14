@@ -2,10 +2,12 @@ import os
 import re
 import json
 import logging
+from contextlib import contextmanager
+from contextvars import ContextVar
 from groq import Groq
 from dotenv import load_dotenv
 
-from core.config import CHAT_MAX_TOKENS, AI_TEMPERATURE
+from core.config import CHAT_MAX_TOKENS, AI_TEMPERATURE, ANALYSIS_MAX_CHARS
 
 load_dotenv()
 
@@ -129,6 +131,11 @@ def _ask_groq(prompt: str) -> str:
     except Exception as e:
         logger.exception("Groq analiz isteği başarısız")
         raise AIServiceError(str(e)) from e
+    finally:
+        # Başarısız çağrılar da maliyet/kota tüketebilir; hepsi sayılır
+        scope = _ai_scope.get()
+        if scope is not None:
+            scope["calls"] += 1
 
     answer = (response.choices[0].message.content or "").strip()
     if not answer:
@@ -148,41 +155,137 @@ def _parse_list(text: str) -> list:
     return result
 
 
+# --- Uzun belgeler ---
+# Metin ANALYSIS_MAX_CHARS'tan uzunsa sessizce kesilmez; parçalara bölünüp işlenir.
+# Parça özetleri istek boyunca önbellekte tutulur ki özet ve belge türüne özel
+# analiz aynı parçayı iki kez özetletmesin.
+
+_ai_scope: ContextVar = ContextVar("ai_scope", default=None)
+
+
+@contextmanager
+def ai_call_scope():
+    """Bir analiz isteği boyunca yapay zeka çağrılarını sayar, parça özetlerini önbellekte tutar.
+
+    Kullanım: with ai_call_scope() as scope: ... ; scope["calls"] toplam çağrı sayısı.
+    """
+    scope = {"calls": 0, "chunk_summaries": {}}
+    token = _ai_scope.set(scope)
+    try:
+        yield scope
+    finally:
+        _ai_scope.reset(token)
+
+
+def _split_text(text: str, size: int) -> list:
+    """Metni en fazla `size` karakterlik parçalara böler; mümkünse paragraf/satır/kelime sınırından keser."""
+    chunks = []
+    while len(text) > size:
+        cut = -1
+        for sep in ("\n\n", "\n", " "):
+            cut = text.rfind(sep, size // 2, size)
+            if cut != -1:
+                break
+        if cut == -1:
+            cut = size
+        chunks.append(text[:cut].strip())
+        text = text[cut:].strip()
+    if text:
+        chunks.append(text)
+    return chunks
+
+
+def _summarize_chunk(chunk: str, part: int, total: int) -> str:
+    scope = _ai_scope.get()
+    cache = scope["chunk_summaries"] if scope else {}
+    if chunk in cache:
+        return cache[chunk]
+
+    prompt = f"""Aşağıdaki metin uzun bir belgenin {total} parçasından {part}. parçasıdır.
+Bu parçayı Türkçe olarak 8-10 cümleyle özetle. Önemli kavramları, isimleri, sayıları
+ve sonuçları koru. Sadece özeti yaz, başka bir şey ekleme.
+
+Metin:
+{chunk}"""
+    summary = _ask_groq(prompt)
+    cache[chunk] = summary
+    return summary
+
+
+def _condense(text: str) -> str:
+    """Metin sınırı aşıyorsa parça özetlerinin birleşimine indirger; sığıyorsa olduğu gibi döndürür."""
+    while len(text) > ANALYSIS_MAX_CHARS:
+        chunks = _split_text(text, ANALYSIS_MAX_CHARS)
+        logger.info("Uzun metin: %d karakter, %d parçaya bölünüp özetleniyor", len(text), len(chunks))
+        text = "\n\n".join(_summarize_chunk(c, i + 1, len(chunks)) for i, c in enumerate(chunks))
+    return text
+
+
+def _merge_round_robin(lists: list, limit: int) -> list:
+    """Parça sonuçlarını sırayla birer birer alarak birleştirir, tekrarları eler.
+
+    Böylece sonuç sadece ilk parçanın maddelerinden oluşmaz, her parçadan temsil edilir.
+    """
+    merged, seen = [], set()
+    for i in range(max((len(lst) for lst in lists), default=0)):
+        for lst in lists:
+            if i < len(lst):
+                key = lst[i].casefold()
+                if key not in seen:
+                    seen.add(key)
+                    merged.append(lst[i])
+    return merged[:limit]
+
+
 def simple_summary(text: str, max_sentences: int = 5, max_chars: int = 900) -> str:
-    prompt = f"""Aşağıdaki metni Türkçe olarak {max_sentences} cümleyi geçmeyecek şekilde özetle. 
+    # Uzun belgede önce parçalar özetlenir, son özet bu özetlerden çıkarılır
+    text = _condense(text)
+    prompt = f"""Aşağıdaki metni Türkçe olarak {max_sentences} cümleyi geçmeyecek şekilde özetle.
 Özet en fazla {max_chars} karakter olsun. Sadece özeti yaz, başka bir şey ekleme.
 
 Metin:
-{text[:3000]}"""
+{text}"""
     return _ask_groq(prompt)
 
 
 def extract_keywords(text: str, top_n: int = 10) -> list:
-    prompt = f"""Aşağıdaki metinden en önemli {top_n} anahtar kelimeyi veya kavramı çıkar.
+    chunks = _split_text(text, ANALYSIS_MAX_CHARS)
+    if len(chunks) > 1:
+        logger.info("Anahtar kelimeler %d parçadan ayrı ayrı çıkarılıyor", len(chunks))
+
+    results = []
+    for chunk in chunks:
+        prompt = f"""Aşağıdaki metinden en önemli {top_n} anahtar kelimeyi veya kavramı çıkar.
 Her kelimeyi ayrı satıra yaz, sadece kelime/kavramı yaz başka açıklama ekleme.
 
 Metin:
-{text[:3000]}"""
-    result = _ask_groq(prompt)
-    return _parse_list(result)[:top_n]
+{chunk}"""
+        results.append(_parse_list(_ask_groq(prompt)))
+    return _merge_round_robin(results, top_n)
 
 
 def extract_important_points(text: str, limit: int = 5) -> list:
-    prompt = f"""Aşağıdaki metinden en önemli {limit} noktayı çıkar.
+    chunks = _split_text(text, ANALYSIS_MAX_CHARS)
+    if len(chunks) > 1:
+        logger.info("Önemli noktalar %d parçadan ayrı ayrı çıkarılıyor", len(chunks))
+
+    results = []
+    for chunk in chunks:
+        prompt = f"""Aşağıdaki metinden en önemli {limit} noktayı çıkar.
 Her noktayı ayrı satıra yaz, madde işareti ile başlat.
 Türkçe olarak yaz.
 
 Metin:
-{text[:3000]}"""
-    result = _ask_groq(prompt)
-    return _parse_list(result)[:limit]
+{chunk}"""
+        results.append(_parse_list(_ask_groq(prompt)))
+    return _merge_round_robin(results, limit)
 
 
 def analyze_cv_with_gemini(text: str) -> dict:
     prompt = f"""Sen bir kariyer danışmanısın. Aşağıdaki CV'yi analiz et ve JSON formatında yanıt ver.
 
 CV metni:
-{text[:4000]}
+{_condense(text)}
 
 Şu alanları içeren bir JSON objesi döndür (başka hiçbir şey yazma, sadece JSON):
 {{
@@ -216,7 +319,7 @@ def analyze_lecture_with_gemini(text: str) -> dict:
     prompt = f"""Sen bir eğitim asistanısın. Aşağıdaki ders notunu analiz et ve JSON formatında yanıt ver.
 
 Ders notu:
-{text[:4000]}
+{_condense(text)}
 
 Şu alanları içeren bir JSON objesi döndür (başka hiçbir şey yazma, sadece JSON):
 {{
@@ -248,7 +351,7 @@ def analyze_general_with_gemini(text: str) -> dict:
     prompt = f"""Aşağıdaki belgeyi analiz et ve JSON formatında yanıt ver.
 
 Belge:
-{text[:4000]}
+{_condense(text)}
 
 Şu alanları içeren bir JSON objesi döndür (başka hiçbir şey yazma, sadece JSON):
 {{
