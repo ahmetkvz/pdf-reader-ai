@@ -62,7 +62,7 @@ Not: Tek sanal ortam `backend/.venv`. Proje kökündeki boş `.venv` silindi.
 ```
 MONGO_URI, DB_NAME, JWT_SECRET, JWT_ALGORITHM,
 ACCESS_TOKEN_EXPIRE_MINUTES, GROQ_API_KEY, GROQ_MODEL, RESEND_API_KEY,
-MAX_PDF_PAGES, CHAT_MAX_TOKENS, AI_TEMPERATURE, MAX_UPLOAD_MB,
+MAX_PDF_PAGES, CHAT_MAX_TOKENS, AI_TEMPERATURE, ANALYSIS_MAX_CHARS, MAX_UPLOAD_MB,
 STORAGE_ENDPOINT_URL, STORAGE_ACCESS_KEY_ID, STORAGE_SECRET_ACCESS_KEY,
 STORAGE_BUCKET
 ```
@@ -96,6 +96,10 @@ Her değişkenin açıklaması ve varsayılanı `backend/.env.example` içinde.
   düşer ve `The DNS query name does not exist` hatası gelir. Çözüm: Atlas
   panelinden **Resume**, ardından birkaç dakika bekle. Veriler kaybolmaz.
 - Render ücretsiz plan istek gelmeyince uyur; ilk istek 50 saniye sürebilir.
+- Groq ücretsiz planda `openai/gpt-oss-120b` dakikada 8.000 token, günde
+  200.000 token ve dakikada 30 istek sınırına tabi. `ANALYSIS_MAX_CHARS` bu
+  yüzden 15.000'in üstüne çıkarılmamalı: tek parça dakikalık sınırı aşarsa o
+  istek asla geçmez, sürekli 429 döner.
 
 ## Kurallar
 
@@ -211,11 +215,14 @@ Her değişkenin açıklaması ve varsayılanı `backend/.env.example` içinde.
       defalarca yeniden indiriliyor (loglarda `GET /documents/{id}/file`
       tekrar tekrar görünüyor). Gereksiz yük.
 
-- [ ] **17. Analiz sadece belgenin başına bakıyor.** Analiz fonksiyonları
+- [x] **17. Analiz sadece belgenin başına bakıyor.** Analiz fonksiyonları
       metni `text[:3000]` / `text[:4000]` ile kesiyor, yani belgenin sadece
       ilk 1-2 sayfasını özetliyor. Sohbet 4. maddeden sonra tüm sayfalara
       ulaşıyor ama analiz ulaşmıyor. Uzun belgelerde parça parça özetleyip
-      birleştirmek gerekiyor.
+      birleştirmek gerekiyor. Sabit kesmeler kaldırıldı; `ANALYSIS_MAX_CHARS`
+      sınırını aşan metin parçalara bölünüp özetleniyor, son özet parça
+      özetlerinden çıkarılıyor. Analiz başına yapay zeka çağrı sayısı
+      loglanıyor (`main.py`'ye log yapılandırması eklendi). (commit `51814dc`)
 
 - [x] **18. Hassas veri tespiti.** `analysis_service.py` `detect_sensitive`
       içindeki telefon deseninde yakalama grubu var: `(\+90|0)`.
@@ -227,6 +234,21 @@ Her değişkenin açıklaması ve varsayılanı `backend/.env.example` içinde.
       düzeltildi, `luhn_check` geri getirildi, IBAN rakamları kart adayı
       olarak taranmıyor, telefon numaraları kart sanılmıyor.
       (commit `5f627a1`)
+
+- [ ] **19. Analiz dört ayrı geçiş yapıyor.** `run_analysis` özet, önemli
+      noktalar ve anahtar kelimeler için belgenin tamamını üç kez ayrı ayrı
+      modele gönderiyordu. 137.370 karakterlik bir belge 60 çağrı ve ~150.000
+      token etti; Groq ücretsiz planın dakikalık sınırı yüzünden analiz bir
+      saatten uzun sürdü. Artık `analyze_document` belgeyi tek geçişte geziyor:
+      her parça için tek çağrı (özet + önemli noktalar + anahtar kelimeler
+      JSON olarak), sonra tek birleştirme, sonra belge türüne özel tek çağrı.
+      Çağrı sayısı parça sayısı + 2 (tek parçalı belgede 2).
+      `ANALYSIS_MAX_CHARS` varsayılanı 60.000'den 15.000'e düştü.
+
+- [ ] **20. Aynı belge için eşzamanlı analiz engellenmiyor.** Frontend'de
+      buton disabled ama sayfa yenilenince koruma kalkıyor; backend hiç
+      kontrol etmiyor. Aynı belge için iki analiz paralel çalışıp kotayı iki
+      katına çıkarabiliyor.
 
 ## Ürün yol haritası
 

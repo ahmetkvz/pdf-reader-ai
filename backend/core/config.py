@@ -24,8 +24,12 @@ ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60")
 MAX_PDF_PAGES = int(os.getenv("MAX_PDF_PAGES", "500"))
 CHAT_MAX_TOKENS = int(os.getenv("CHAT_MAX_TOKENS", "1000"))
 AI_TEMPERATURE = float(os.getenv("AI_TEMPERATURE", "0.2"))
-# Analizde tek seferde modele gönderilen en fazla metin; aşan belgeler parça parça işlenir
-ANALYSIS_MAX_CHARS = int(os.getenv("ANALYSIS_MAX_CHARS", "60000"))
+# Analizde tek seferde modele gönderilen en fazla metin; aşan belgeler parça parça işlenir.
+# Groq ücretsiz planda dakikada 8.000 token sınırı var. Türkçe metinde kabaca 3 karakter
+# 1 token ettiği için 15.000 karakterlik parça ~5.000 token eder ve tek istek sınırın altında
+# kalır. 60.000 karakterlik parça tek başına ~20.000 token ettiği için dakikalık sınırı asla
+# geçemiyordu (istek sürekli 429 alıyordu).
+ANALYSIS_MAX_CHARS = int(os.getenv("ANALYSIS_MAX_CHARS", "15000"))
 
 MAX_UPLOAD_MB = int(os.getenv("MAX_UPLOAD_MB", "20"))
 

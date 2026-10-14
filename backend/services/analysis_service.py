@@ -120,12 +120,12 @@ def detect_document_type(text: str, filename: str = "") -> str:
     return "general"
 
 
-def _ask_groq(prompt: str) -> str:
+def _ask_groq(prompt: str, max_tokens: int = 1000) -> str:
     try:
         response = client.chat.completions.create(
             model=GROQ_MODEL,
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=1000,
+            max_tokens=max_tokens,
             temperature=AI_TEMPERATURE,
         )
     except Exception as e:
@@ -145,31 +145,43 @@ def _ask_groq(prompt: str) -> str:
     return answer
 
 
-def _parse_list(text: str) -> list:
-    lines = text.strip().split("\n")
-    result = []
-    for line in lines:
-        line = re.sub(r"^[\-\*\d\.\)]+\s*", "", line).strip()
-        if line:
-            result.append(line)
-    return result
+def _parse_json_object(raw: str, fallback: dict) -> dict:
+    """Model cevabından JSON nesnesini çıkarır; olmazsa fallback döndürür.
+
+    Model bazen ```json ... ``` bloğu içinde ya da başına açıklama ekleyerek yanıt veriyor.
+    """
+    text = re.sub(r"```(?:json)?", "", raw or "", flags=re.IGNORECASE)
+    start, end = text.find("{"), text.rfind("}")
+    if start != -1 and end > start:
+        try:
+            parsed = json.loads(text[start:end + 1])
+            if isinstance(parsed, dict):
+                return parsed
+        except Exception:
+            pass
+    return fallback
 
 
-# --- Uzun belgeler ---
-# Metin ANALYSIS_MAX_CHARS'tan uzunsa sessizce kesilmez; parçalara bölünüp işlenir.
-# Parça özetleri istek boyunca önbellekte tutulur ki özet ve belge türüne özel
-# analiz aynı parçayı iki kez özetletmesin.
+# --- Belge analizi ---
+# Belge bir kez gezilir: her parça için TEK çağrı özet + önemli noktalar + anahtar
+# kelimeleri birlikte döndürür. Sonra tek birleştirme çağrısı, sonra belge türüne
+# özel tek çağrı. Çağrı sayısı: parça sayısı + 2 (tek parçalı belgede 2).
+
+# Parça ve birleştirme cevapları JSON; gpt-oss bütçenin bir kısmını düşünmeye harcadığı
+# için 1000 token'da JSON yarıda kesilebiliyor. ~5.000 girdi + 2.000 çıktı dakikalık
+# 8.000 token sınırının altında kalır.
+_JSON_MAX_TOKENS = 2000
 
 _ai_scope: ContextVar = ContextVar("ai_scope", default=None)
 
 
 @contextmanager
 def ai_call_scope():
-    """Bir analiz isteği boyunca yapay zeka çağrılarını sayar, parça özetlerini önbellekte tutar.
+    """Bir analiz isteği boyunca yapay zeka çağrılarını sayar.
 
     Kullanım: with ai_call_scope() as scope: ... ; scope["calls"] toplam çağrı sayısı.
     """
-    scope = {"calls": 0, "chunk_summaries": {}}
+    scope = {"calls": 0}
     token = _ai_scope.set(scope)
     try:
         yield scope
@@ -195,36 +207,11 @@ def _split_text(text: str, size: int) -> list:
     return chunks
 
 
-def _summarize_chunk(chunk: str, part: int, total: int) -> str:
-    scope = _ai_scope.get()
-    cache = scope["chunk_summaries"] if scope else {}
-    if chunk in cache:
-        return cache[chunk]
-
-    prompt = f"""Aşağıdaki metin uzun bir belgenin {total} parçasından {part}. parçasıdır.
-Bu parçayı Türkçe olarak 8-10 cümleyle özetle. Önemli kavramları, isimleri, sayıları
-ve sonuçları koru. Sadece özeti yaz, başka bir şey ekleme.
-
-Metin:
-{chunk}"""
-    summary = _ask_groq(prompt)
-    cache[chunk] = summary
-    return summary
-
-
-def _condense(text: str) -> str:
-    """Metin sınırı aşıyorsa parça özetlerinin birleşimine indirger; sığıyorsa olduğu gibi döndürür."""
-    while len(text) > ANALYSIS_MAX_CHARS:
-        chunks = _split_text(text, ANALYSIS_MAX_CHARS)
-        logger.info("Uzun metin: %d karakter, %d parçaya bölünüp özetleniyor", len(text), len(chunks))
-        text = "\n\n".join(_summarize_chunk(c, i + 1, len(chunks)) for i, c in enumerate(chunks))
-    return text
-
-
 def _merge_round_robin(lists: list, limit: int) -> list:
     """Parça sonuçlarını sırayla birer birer alarak birleştirir, tekrarları eler.
 
     Böylece sonuç sadece ilk parçanın maddelerinden oluşmaz, her parçadan temsil edilir.
+    Birleştirme çağrısı ayrıştırılamazsa yerel yedek olarak kullanılır.
     """
     merged, seen = [], set()
     for i in range(max((len(lst) for lst in lists), default=0)):
@@ -237,55 +224,164 @@ def _merge_round_robin(lists: list, limit: int) -> list:
     return merged[:limit]
 
 
-def simple_summary(text: str, max_sentences: int = 5, max_chars: int = 900) -> str:
-    # Uzun belgede önce parçalar özetlenir, son özet bu özetlerden çıkarılır
-    text = _condense(text)
-    prompt = f"""Aşağıdaki metni Türkçe olarak {max_sentences} cümleyi geçmeyecek şekilde özetle.
-Özet en fazla {max_chars} karakter olsun. Sadece özeti yaz, başka bir şey ekleme.
-
-Metin:
-{text}"""
-    return _ask_groq(prompt)
+def _as_str_list(value) -> list:
+    """Modelden gelen liste alanını temizler; liste değilse boş liste döndürür."""
+    if not isinstance(value, list):
+        return []
+    return [str(v).strip() for v in value if str(v).strip()]
 
 
-def extract_keywords(text: str, top_n: int = 10) -> list:
-    chunks = _split_text(text, ANALYSIS_MAX_CHARS)
-    if len(chunks) > 1:
-        logger.info("Anahtar kelimeler %d parçadan ayrı ayrı çıkarılıyor", len(chunks))
-
-    results = []
-    for chunk in chunks:
-        prompt = f"""Aşağıdaki metinden en önemli {top_n} anahtar kelimeyi veya kavramı çıkar.
-Her kelimeyi ayrı satıra yaz, sadece kelime/kavramı yaz başka açıklama ekleme.
-
-Metin:
-{chunk}"""
-        results.append(_parse_list(_ask_groq(prompt)))
-    return _merge_round_robin(results, top_n)
+def _normalize_result(data: dict) -> dict:
+    return {
+        "ozet": str(data.get("ozet") or "").strip(),
+        "onemli_noktalar": _as_str_list(data.get("onemli_noktalar")),
+        "anahtar_kelimeler": _as_str_list(data.get("anahtar_kelimeler")),
+    }
 
 
-def extract_important_points(text: str, limit: int = 5) -> list:
-    chunks = _split_text(text, ANALYSIS_MAX_CHARS)
-    if len(chunks) > 1:
-        logger.info("Önemli noktalar %d parçadan ayrı ayrı çıkarılıyor", len(chunks))
+def _analyze_chunk(chunk: str, part: int, total: int) -> dict:
+    prompt = f"""Aşağıdaki metin uzun bir belgenin {total} parçasından {part}. parçasıdır.
+Bu parçayı analiz et ve SADECE şu şemada bir JSON nesnesi döndür, başka hiçbir şey yazma:
+{{"ozet": "...", "onemli_noktalar": ["..."], "anahtar_kelimeler": ["..."]}}
 
-    results = []
-    for chunk in chunks:
-        prompt = f"""Aşağıdaki metinden en önemli {limit} noktayı çıkar.
-Her noktayı ayrı satıra yaz, madde işareti ile başlat.
-Türkçe olarak yaz.
+Kurallar:
+- "ozet" 8-10 cümle olsun.
+- "onemli_noktalar" en fazla 5 madde olsun.
+- "anahtar_kelimeler" en fazla 10 kelime veya kavram olsun.
+- İsimleri, sayıları ve tarihleri koru.
+- Türkçe yaz.
 
 Metin:
 {chunk}"""
-        results.append(_parse_list(_ask_groq(prompt)))
-    return _merge_round_robin(results, limit)
+    raw = _ask_groq(prompt, max_tokens=_JSON_MAX_TOKENS)
+    fallback = {"ozet": raw[:1500], "onemli_noktalar": [], "anahtar_kelimeler": []}
+    return _normalize_result(_parse_json_object(raw, fallback))
+
+
+def _merge_locally(results: list, limit: int, top_n: int, max_chars: int = 900) -> dict:
+    """Birleştirme çağrısı ayrıştırılamazsa yapay zekasız yedek birleştirme."""
+    summary = " ".join(r["ozet"] for r in results if r["ozet"])
+    if len(summary) > max_chars:
+        summary = summary[:max_chars].rsplit(" ", 1)[0] + "…"
+    return {
+        "ozet": summary,
+        "onemli_noktalar": _merge_round_robin([r["onemli_noktalar"] for r in results], limit),
+        "anahtar_kelimeler": _merge_round_robin([r["anahtar_kelimeler"] for r in results], top_n),
+    }
+
+
+def _reduce_once(results: list, max_sentences: int, max_chars: int, limit: int, top_n: int) -> dict:
+    payload = json.dumps(results, ensure_ascii=False)
+    prompt = f"""Aşağıdaki JSON listesindeki sonuçlar tek bir belgenin parçalarından çıkarıldı.
+Tekrarları birleştir ve belgenin bütününü temsil eden TEK bir sonuç üret.
+SADECE şu şemada bir JSON nesnesi döndür, başka hiçbir şey yazma:
+{{"ozet": "...", "onemli_noktalar": ["..."], "anahtar_kelimeler": ["..."]}}
+
+Kurallar:
+- "ozet" en fazla {max_sentences} cümle ve en fazla {max_chars} karakter olsun.
+- "onemli_noktalar" en fazla {limit} madde olsun.
+- "anahtar_kelimeler" en fazla {top_n} kelime veya kavram olsun.
+- Türkçe yaz.
+
+Parça sonuçları:
+{payload}"""
+    raw = _ask_groq(prompt, max_tokens=_JSON_MAX_TOKENS)
+    parsed = _parse_json_object(raw, None)
+    if parsed is None:
+        logger.warning("Birleştirme cevabı JSON olarak ayrıştırılamadı; yerel birleştirmeye düşülüyor")
+        return _merge_locally(results, limit, top_n, max_chars)
+
+    result = _normalize_result(parsed)
+    result["onemli_noktalar"] = result["onemli_noktalar"][:limit]
+    result["anahtar_kelimeler"] = result["anahtar_kelimeler"][:top_n]
+    return result
+
+
+def _group_results(results: list, max_chars: int) -> list:
+    """Sonuçları, her grubun JSON hâli max_chars'ı aşmayacak şekilde ardışık gruplara böler."""
+    groups, current, size = [], [], 0
+    for r in results:
+        r_size = len(json.dumps(r, ensure_ascii=False))
+        if current and size + r_size > max_chars:
+            groups.append(current)
+            current, size = [], 0
+        current.append(r)
+        size += r_size
+    if current:
+        groups.append(current)
+    return groups
+
+
+def _reduce_results(results: list, max_sentences: int, limit: int, top_n: int) -> dict:
+    """Parça sonuçlarını aynı şemada tek sonuca indirger.
+
+    Toplam metin ANALYSIS_MAX_CHARS'ı aşıyorsa gruplar ayrı ayrı birleştirilir ve
+    çıkanlar tekrar birleştirilir; en fazla 3 tur, sonra sığmayan kısım kırpılır.
+    """
+    for round_no in range(1, 4):
+        if len(json.dumps(results, ensure_ascii=False)) <= ANALYSIS_MAX_CHARS:
+            break
+        groups = _group_results(results, ANALYSIS_MAX_CHARS)
+        logger.info("Birleştirme %d. tur: %d sonuç %d gruba bölündü", round_no, len(results), len(groups))
+        # Ara turlarda özet daha uzun tutulur ki bilgi son birleştirmeden önce kaybolmasın
+        results = [_reduce_once(g, 10, 1500, limit, top_n) for g in groups]
+    else:
+        if len(json.dumps(results, ensure_ascii=False)) > ANALYSIS_MAX_CHARS:
+            logger.warning("Birleştirme 3 turda sığmadı; ilk %d karakterlik kısım kullanılıyor", ANALYSIS_MAX_CHARS)
+            kept, size = [], 0
+            for r in results:
+                size += len(json.dumps(r, ensure_ascii=False))
+                if kept and size > ANALYSIS_MAX_CHARS:
+                    break
+                kept.append(r)
+            results = kept
+
+    return _reduce_once(results, max_sentences, 900, limit, top_n)
+
+
+def analyze_document(text: str, document_type: str) -> dict:
+    """Belgeyi tek geçişte analiz eder. Herhangi bir çağrı başarısız olursa AIServiceError fırlar."""
+    chunks = _split_text(text, ANALYSIS_MAX_CHARS)
+    logger.info("Analiz: %d karakter, %d parça", len(text), len(chunks))
+
+    results = [_analyze_chunk(c, i + 1, len(chunks)) for i, c in enumerate(chunks)]
+
+    if len(results) == 1:
+        # Tek parçada birleştirme çağrısı yapılmaz; parça sonucu doğrudan kullanılır
+        final = results[0]
+        final["onemli_noktalar"] = final["onemli_noktalar"][:5]
+        final["anahtar_kelimeler"] = final["anahtar_kelimeler"][:10]
+        # Tek parçalı metin zaten sınırın altında; belge türüne özel analiz ham metni görsün
+        # (CV'de beceriler, ders notunda kavramlar özette kaybolmasın). Ek çağrı açmaz.
+        specific_input = chunks[0]
+    else:
+        final = _reduce_results(results, max_sentences=5, limit=5, top_n=10)
+        # Yeni özetleme turu açmadan parça özetlerinin birleşimi kullanılır
+        specific_input = "\n\n".join(r["ozet"] for r in results if r["ozet"])
+        if len(specific_input) > ANALYSIS_MAX_CHARS:
+            # Çok uzun belgede parça özetleri de sığmıyorsa birleştirilmiş sonucu kullan
+            specific_input = final["ozet"] + "\n\n" + "\n".join(f"- {p}" for p in final["onemli_noktalar"])
+
+    if document_type == "cv":
+        document_specific = analyze_cv_with_gemini(specific_input)
+    elif document_type == "lecture_note":
+        document_specific = analyze_lecture_with_gemini(specific_input)
+    else:
+        document_specific = analyze_general_with_gemini(specific_input)
+
+    return {
+        "summary": final["ozet"],
+        "important_points": final["onemli_noktalar"],
+        "keywords": final["anahtar_kelimeler"],
+        "document_specific": document_specific,
+    }
 
 
 def analyze_cv_with_gemini(text: str) -> dict:
     prompt = f"""Sen bir kariyer danışmanısın. Aşağıdaki CV'yi analiz et ve JSON formatında yanıt ver.
 
 CV metni:
-{_condense(text)}
+{text}
 
 Şu alanları içeren bir JSON objesi döndür (başka hiçbir şey yazma, sadece JSON):
 {{
@@ -298,28 +394,21 @@ CV metni:
 }}"""
 
     result = _ask_groq(prompt)
-    try:
-        json_match = re.search(r'\{.*\}', result, re.DOTALL)
-        if json_match:
-            return json.loads(json_match.group())
-    except:
-        pass
-
-    return {
+    return _parse_json_object(result, {
         "profileSummary": result[:300],
         "strongSides": [],
         "technicalSkills": [],
         "experienceHighlights": [],
         "improvementSuggestions": [],
         "careerAdvice": ""
-    }
+    })
 
 
 def analyze_lecture_with_gemini(text: str) -> dict:
     prompt = f"""Sen bir eğitim asistanısın. Aşağıdaki ders notunu analiz et ve JSON formatında yanıt ver.
 
 Ders notu:
-{_condense(text)}
+{text}
 
 Şu alanları içeren bir JSON objesi döndür (başka hiçbir şey yazma, sadece JSON):
 {{
@@ -331,27 +420,20 @@ Ders notu:
 }}"""
 
     result = _ask_groq(prompt)
-    try:
-        json_match = re.search(r'\{.*\}', result, re.DOTALL)
-        if json_match:
-            return json.loads(json_match.group())
-    except:
-        pass
-
-    return {
+    return _parse_json_object(result, {
         "lessonSummary": result[:300],
         "keyConcepts": [],
         "examFocusedNotes": [],
         "studySuggestions": [],
         "possibleExamQuestions": []
-    }
+    })
 
 
 def analyze_general_with_gemini(text: str) -> dict:
     prompt = f"""Aşağıdaki belgeyi analiz et ve JSON formatında yanıt ver.
 
 Belge:
-{_condense(text)}
+{text}
 
 Şu alanları içeren bir JSON objesi döndür (başka hiçbir şey yazma, sadece JSON):
 {{
@@ -362,19 +444,12 @@ Belge:
 }}"""
 
     result = _ask_groq(prompt)
-    try:
-        json_match = re.search(r'\{.*\}', result, re.DOTALL)
-        if json_match:
-            return json.loads(json_match.group())
-    except:
-        pass
-
-    return {
+    return _parse_json_object(result, {
         "generalSummary": result[:300],
         "mainTopics": [],
         "documentWarnings": [],
         "recommendations": []
-    }
+    })
 
 
 def _ask_groq_chat(prompt: str) -> str:

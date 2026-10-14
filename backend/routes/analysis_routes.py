@@ -7,14 +7,8 @@ from db.mongo import documents_collection, analyses_collection
 from core.dependencies import get_current_user
 from models.analysis_model import analysis_record
 from services.analysis_service import (
-    simple_summary,
+    analyze_document,
     detect_sensitive,
-    extract_keywords,
-    extract_important_points,
-    analyze_cv_with_gemini,
-    analyze_lecture_with_gemini,
-    analyze_general_with_gemini,
-    detect_document_type,
     AIServiceError,
     ai_call_scope,
 )
@@ -52,16 +46,11 @@ def run_analysis(document_id: str, current_user: dict = Depends(get_current_user
     success = False
     with ai_call_scope() as scope:
         try:
-            summary = simple_summary(text)
-            important_points = extract_important_points(text)
-            keywords = extract_keywords(text)
-
-            if document_type == "cv":
-                document_specific_analysis = analyze_cv_with_gemini(text)
-            elif document_type == "lecture_note":
-                document_specific_analysis = analyze_lecture_with_gemini(text)
-            else:
-                document_specific_analysis = analyze_general_with_gemini(text)
+            result = analyze_document(text, document_type)
+            summary = result["summary"]
+            important_points = result["important_points"]
+            keywords = result["keywords"]
+            document_specific_analysis = result["document_specific"]
             success = True
         except AIServiceError:
             raise HTTPException(status_code=503, detail=AI_UNAVAILABLE_MESSAGE)
